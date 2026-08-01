@@ -8,8 +8,8 @@ copied from the current branch after the upstream archive is created.
 
 Build unsigned source uploads from the repository root:
 
-    debian/build-ppa-source noble
-    debian/build-ppa-source resolute
+    bash debian/build-ppa-source noble
+    bash debian/build-ppa-source resolute
 
 The Noble upload includes bhola-pulse_0.1.1.orig.tar.xz. The Resolute upload is
 built with -sd and reuses the same orig archive after Noble has been accepted.
