@@ -4,6 +4,7 @@ Priority: optional
 Maintainer: Łukasz Budzynowski <lbudzynowski@gmail.com>
 Build-Depends:
  debhelper-compat (= 13),
+ git,
  python3 (>= 3.11),
 Standards-Version: 4.7.4.1
 Rules-Requires-Root: no
