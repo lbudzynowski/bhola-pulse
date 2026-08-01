@@ -74,7 +74,7 @@ package, and install it with APT:
 
 ```bash
 sha256sum --check SHA256SUMS
-sudo apt install ./bhola-pulse_0.1.0_all.deb
+sudo apt install ./bhola-pulse_0.1.1_all.deb
 bhola-pulse --check
 bhola-pulse
 ```
