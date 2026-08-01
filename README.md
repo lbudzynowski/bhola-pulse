@@ -12,6 +12,21 @@ The project is intentionally user-scoped: it does not change GNOME settings,
 create services, enable autostart, alter the display layout, or modify VPN,
 firewall, or package-manager configuration.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="49%">
+      <a href="docs/images/large-sharp.png"><img src="docs/images/large-sharp.png" alt="Bhola Pulse LARGE SHARP dashboard showing live system, activity, status, and network panels" width="100%"></a><br>
+      <sub>LARGE SHARP — live modern renderer.</sub>
+    </td>
+    <td width="49%">
+      <a href="docs/images/nerd-mode.png"><img src="docs/images/nerd-mode.png" alt="Bhola Pulse NERD MODE dashboard showing live terminal-style system telemetry" width="100%"></a><br>
+      <sub>NERD MODE — live terminal/BBS renderer.</sub>
+    </td>
+  </tr>
+</table>
+
 ## Dashboard
 
 Bhola Pulse renders the same four-section 760×570 dashboard on every monitor

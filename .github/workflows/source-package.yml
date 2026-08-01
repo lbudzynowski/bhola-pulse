@@ -5,7 +5,25 @@ on:
     branches:
       - main
       - "agent/**"
+    paths:
+      - "VERSION"
+      - "packaging/**"
+      - "scripts/run-dev.sh"
+      - "src/**"
+      - "conky/**"
+      - "config/**"
+      - "debian/**"
+      - ".github/workflows/source-package.yml"
   pull_request:
+    paths:
+      - "VERSION"
+      - "packaging/**"
+      - "scripts/run-dev.sh"
+      - "src/**"
+      - "conky/**"
+      - "config/**"
+      - "debian/**"
+      - ".github/workflows/source-package.yml"
 
 permissions:
   contents: read

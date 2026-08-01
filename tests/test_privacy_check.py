@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import struct
 import subprocess
 import sys
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
 
 
@@ -26,6 +28,36 @@ class PrivacyCheckTests(unittest.TestCase):
         environment = os.environ.copy()
         environment.pop(privacy_check.DENYLIST_ENV, None)
         return environment
+
+    @staticmethod
+    def png_chunk(chunk_type: bytes, data: bytes) -> bytes:
+        checksum = zlib.crc32(chunk_type)
+        checksum = zlib.crc32(data, checksum) & 0xFFFFFFFF
+        return (
+            struct.pack(">I", len(data))
+            + chunk_type
+            + data
+            + struct.pack(">I", checksum)
+        )
+
+    @classmethod
+    def minimal_png(
+        cls,
+        width: int,
+        height: int,
+        *,
+        extra_chunks: tuple[tuple[bytes, bytes], ...] = (),
+        include_idat: bool = True,
+        trailing: bytes = b"",
+    ) -> bytes:
+        ihdr = struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0)
+        chunks = [cls.png_chunk(b"IHDR", ihdr)]
+        chunks.extend(cls.png_chunk(kind, value) for kind, value in extra_chunks)
+        if include_idat:
+            scanlines = (b"\x00" + (b"\x00" * width)) * height
+            chunks.append(cls.png_chunk(b"IDAT", zlib.compress(scanlines)))
+        chunks.append(cls.png_chunk(b"IEND", b""))
+        return privacy_check.PNG_SIGNATURE + b"".join(chunks) + trailing
 
     def test_detects_linux_home_path(self) -> None:
         value = "/" + "home/example/Projects/private"
@@ -179,6 +211,102 @@ class PrivacyCheckTests(unittest.TestCase):
     def test_runs_cleanly_without_configured_denylist(self) -> None:
         self.assertEqual((), privacy_check.load_denylist({}))
         self.assertEqual([], privacy_check.scan_bytes("sample.txt", b"NeutralMarker"))
+
+    def test_allows_only_approved_png_paths_with_expected_dimensions(self) -> None:
+        self.assertEqual(
+            {
+                "docs/images/large-sharp.png": (958, 721),
+                "docs/images/nerd-mode.png": (958, 721),
+            },
+            privacy_check.APPROVED_PNG_DIMENSIONS,
+        )
+        for path, dimensions in privacy_check.APPROVED_PNG_DIMENSIONS.items():
+            with self.subTest(path=path):
+                data = self.minimal_png(*dimensions)
+                self.assertEqual([], privacy_check.scan_bytes(path, data))
+
+    def test_rejects_identical_png_at_another_path(self) -> None:
+        data = self.minimal_png(958, 721)
+        findings = privacy_check.scan_bytes("docs/images/other.png", data)
+        self.assertIn("binary_file_unscanned", {item.category for item in findings})
+
+    def test_rejects_approved_png_with_invalid_signature(self) -> None:
+        data = b"invalid!" + self.minimal_png(958, 721)[8:]
+        findings = privacy_check.scan_bytes(
+            "docs/images/large-sharp.png",
+            data,
+        )
+        self.assertIn(
+            "approved_png_invalid_signature",
+            {item.category for item in findings},
+        )
+
+    def test_rejects_approved_png_with_invalid_crc(self) -> None:
+        data = bytearray(self.minimal_png(958, 721))
+        ihdr_crc_offset = len(privacy_check.PNG_SIGNATURE) + 4 + 4 + 13
+        data[ihdr_crc_offset] ^= 1
+        findings = privacy_check.scan_bytes(
+            "docs/images/large-sharp.png",
+            bytes(data),
+        )
+        self.assertIn("approved_png_invalid_crc", {item.category for item in findings})
+
+    def test_rejects_approved_png_with_wrong_dimensions(self) -> None:
+        data = self.minimal_png(957, 721)
+        findings = privacy_check.scan_bytes(
+            "docs/images/large-sharp.png",
+            data,
+        )
+        self.assertIn(
+            "approved_png_unexpected_dimensions",
+            {item.category for item in findings},
+        )
+
+    def test_rejects_approved_png_with_metadata_chunk(self) -> None:
+        data = self.minimal_png(
+            958,
+            721,
+            extra_chunks=((b"tEXt", b"Comment\x00not allowed"),),
+        )
+        findings = privacy_check.scan_bytes(
+            "docs/images/nerd-mode.png",
+            data,
+        )
+        self.assertIn(
+            "approved_png_unexpected_chunk",
+            {item.category for item in findings},
+        )
+
+    def test_rejects_approved_png_with_trailing_data(self) -> None:
+        data = self.minimal_png(958, 721, trailing=b"unexpected")
+        findings = privacy_check.scan_bytes(
+            "docs/images/nerd-mode.png",
+            data,
+        )
+        self.assertIn(
+            "approved_png_trailing_data",
+            {item.category for item in findings},
+        )
+
+    def test_rejects_approved_png_without_idat(self) -> None:
+        data = self.minimal_png(958, 721, include_idat=False)
+        findings = privacy_check.scan_bytes(
+            "docs/images/nerd-mode.png",
+            data,
+        )
+        self.assertIn("approved_png_missing_idat", {item.category for item in findings})
+
+    def test_rejects_empty_or_oversized_approved_png(self) -> None:
+        for data in (b"", b"\x00" * (privacy_check.MAX_APPROVED_PNG_SIZE + 1)):
+            with self.subTest(size=len(data)):
+                findings = privacy_check.scan_bytes(
+                    "docs/images/large-sharp.png",
+                    data,
+                )
+                self.assertIn(
+                    "approved_png_invalid_size",
+                    {item.category for item in findings},
+                )
 
     def test_scanner_source_passes_its_own_scan(self) -> None:
         findings = privacy_check.scan_bytes(
