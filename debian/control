@@ -1,0 +1,28 @@
+Source: bhola-pulse
+Section: utils
+Priority: optional
+Maintainer: Łukasz Budzynowski <lbudzynowski@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ python3 (>= 3.11),
+Standards-Version: 4.7.4.1
+Rules-Requires-Root: no
+Homepage: https://github.com/lbudzynowski/bhola-pulse
+Vcs-Browser: https://github.com/lbudzynowski/bhola-pulse
+Vcs-Git: https://github.com/lbudzynowski/bhola-pulse.git
+
+Package: bhola-pulse
+Architecture: all
+Depends:
+ conky-all,
+ libx11-6,
+ python3 (>= 3.11),
+ x11-xserver-utils,
+ ${misc:Depends},
+Recommends:
+ iputils-ping,
+ nftables,
+Description: animated system telemetry dashboard for Ubuntu GNOME
+ Bhola Pulse is a transparent multi-monitor Conky dashboard with a single
+ Python telemetry provider, atomic JSON cache, modern and terminal-inspired
+ renderers, bounded network probes, and privacy-preserving local status data.
