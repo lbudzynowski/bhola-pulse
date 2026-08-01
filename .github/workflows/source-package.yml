@@ -50,10 +50,21 @@ jobs:
           source_root="build/ppa/${series}"
           changes="${source_root}/bhola-pulse_${expected}_source.changes"
           dsc="${source_root}/bhola-pulse_${expected}.dsc"
+          buildinfo="${source_root}/bhola-pulse_${expected}_source.buildinfo"
           test -f "$changes"
           test -f "$dsc"
+          test -f "$buildinfo"
           grep -Fx "Distribution: ${series}" "$changes"
           grep -Fx "Version: ${expected}" "$changes"
+          (
+            cd "$source_root"
+            awk '
+              BEGIN { section = 0 }
+              /^Checksums-Sha256:/ { section = 1; next }
+              section && /^[^ ]/ { exit }
+              section { print $1 "  " $3 }
+            ' "$(basename -- "$changes")" | sha256sum --check --strict -
+          )
           extracted="$RUNNER_TEMP/source-${series}"
           dpkg-source --extract "$dsc" "$extracted"
           (
@@ -90,5 +101,6 @@ jobs:
           path: |
             build/ppa/${{ matrix.series }}/*.dsc
             build/ppa/${{ matrix.series }}/*_source.changes
+            build/ppa/${{ matrix.series }}/*_source.buildinfo
             build/ppa/${{ matrix.series }}/*.tar.*
           if-no-files-found: error
