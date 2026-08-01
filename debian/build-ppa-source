@@ -41,8 +41,20 @@ if ! git -C "$project_root" rev-parse --verify --quiet "${upstream_ref}^{commit}
     exit 1
 fi
 
-if ! git -C "$project_root" diff --quiet "$upstream_ref" -- . ':!debian' ':!.github/workflows/source-package.yml'; then
-    printf 'Upstream files differ from pinned commit %s; refusing to create a mismatched orig archive.\n' "$upstream_ref" >&2
+# The PPA archive is a release snapshot. Documentation, screenshots, and
+# repository-only QA may evolve after that release without changing the
+# installed package. Refuse only when the runtime payload for 0.1.1 differs
+# from the pinned, verified upstream commit.
+upstream_payload_paths=(
+    VERSION
+    packaging/bhola-pulse
+    scripts/run-dev.sh
+    src
+    conky
+    config
+)
+if ! git -C "$project_root" diff --quiet "$upstream_ref" -- "${upstream_payload_paths[@]}"; then
+    printf 'Runtime payload differs from pinned commit %s; refusing to create a mismatched orig archive.\n' "$upstream_ref" >&2
     exit 1
 fi
 
