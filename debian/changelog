@@ -1,0 +1,10 @@
+bhola-pulse (0.1.1-1~ppa1~noble1) noble; urgency=medium
+
+  * Add standards-compliant Debian source packaging for Launchpad PPA builds.
+  * Package the verified Bhola Pulse 0.1.1 application, launchers, renderers,
+    privacy-preserving provider, configuration, and documentation.
+  * Build and test source packages for supported Ubuntu series without
+    uploading pre-built binary packages.
+  * Validate the source-built binary with the complete 67-test suite.
+
+ -- Łukasz Budzynowski <lbudzynowski@gmail.com>  Sat, 01 Aug 2026 22:21:31 +0200
