@@ -1,0 +1,106 @@
+name: Debian source package
+
+on:
+  push:
+    branches:
+      - main
+      - "agent/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  source-package:
+    name: Source package (${{ matrix.series }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        series:
+          - noble
+          - resolute
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Debian source packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends build-essential debhelper devscripts
+
+      - name: Build unsigned source package
+        run: bash debian/build-ppa-source "${{ matrix.series }}"
+
+      - name: Extract, rebuild, and inspect source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          series="${{ matrix.series }}"
+          expected="0.1.1-1~ppa1~${series}1"
+          source_root="build/ppa/${series}"
+          changes="${source_root}/bhola-pulse_${expected}_source.changes"
+          dsc="${source_root}/bhola-pulse_${expected}.dsc"
+          buildinfo="${source_root}/bhola-pulse_${expected}_source.buildinfo"
+          test -f "$changes"
+          test -f "$dsc"
+          test -f "$buildinfo"
+          grep -Fx "Distribution: ${series}" "$changes"
+          grep -Fx "Version: ${expected}" "$changes"
+          (
+            cd "$source_root"
+            awk '
+              BEGIN { section = 0 }
+              /^Checksums-Sha256:/ { section = 1; next }
+              section && /^[^ ]/ { exit }
+              section { print $1 "  " $3 }
+            ' "$(basename -- "$changes")" | sha256sum --check --strict -
+          )
+          extracted="$RUNNER_TEMP/source-${series}"
+          dpkg-source --extract "$dsc" "$extracted"
+          (
+            cd "$extracted"
+            dpkg-buildpackage --build=binary --unsigned-source --unsigned-changes
+          )
+          deb="$RUNNER_TEMP/bhola-pulse_${expected}_all.deb"
+          test -f "$deb"
+          test "$(dpkg-deb --field "$deb" Package)" = bhola-pulse
+          test "$(dpkg-deb --field "$deb" Version)" = "$expected"
+          test "$(dpkg-deb --field "$deb" Architecture)" = all
+          package_root="$RUNNER_TEMP/package-${series}"
+          dpkg-deb --extract "$deb" "$package_root"
+          test -x "$package_root/usr/bin/bhola-pulse"
+          test -x "$package_root/usr/lib/bhola-pulse/scripts/run-dev.sh"
+          test -f "$package_root/usr/lib/bhola-pulse/conky/bhola_render.lua"
+          test -f "$package_root/usr/lib/bhola-pulse/conky/bhola_render_nerd.lua"
+          test ! -e "$package_root/usr/lib/bhola-pulse/state"
+          if find "$package_root" -type d ! -perm 0755 -print -quit | grep -q .; then
+            printf 'Source-built package contains a directory whose mode is not 0755.\n' >&2
+            find "$package_root" -type d ! -perm 0755 -printf '%m %p\n' >&2
+            exit 1
+          fi
+          HOME="$RUNNER_TEMP/home-${series}" \
+          XDG_CONFIG_HOME="$RUNNER_TEMP/config-${series}" \
+          XDG_STATE_HOME="$RUNNER_TEMP/state-${series}" \
+          BHOLA_PULSE_LIBDIR="$package_root/usr/lib/bhola-pulse" \
+            "$package_root/usr/bin/bhola-pulse" --version | grep -Fx 'Bhola Pulse 0.1.1'
+
+      - name: Upload source package files
+        uses: actions/upload-artifact@v4
+        with:
+          name: bhola-pulse-source-${{ matrix.series }}
+          path: |
+            build/ppa/${{ matrix.series }}/*.dsc
+            build/ppa/${{ matrix.series }}/*_source.changes
+            build/ppa/${{ matrix.series }}/*_source.buildinfo
+            build/ppa/${{ matrix.series }}/*.tar.*
+          if-no-files-found: error

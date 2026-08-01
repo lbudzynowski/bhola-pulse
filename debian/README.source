@@ -1,0 +1,25 @@
+Bhola Pulse source packages for Launchpad
+=========================================
+
+The PPA source builder is intentionally pinned to upstream commit
+3d11f266ae60da6035d0416dbf88f1624465566d, which contains the verified 0.1.1
+snapshot and the corrected installation example. Debian packaging files are
+copied from the current branch after the upstream archive is created.
+
+Build unsigned source uploads from the repository root:
+
+    bash debian/build-ppa-source noble
+    bash debian/build-ppa-source resolute
+
+The Noble upload includes bhola-pulse_0.1.1.orig.tar.xz. The Resolute upload is
+built with -sd and reuses the same orig archive after Noble has been accepted.
+
+Before upload, inspect the generated .dsc and _source.changes files, sign each
+_source.changes file with the OpenPGP key associated with the Launchpad account,
+and upload only the signed source package to:
+
+    ppa:lbudzynowski/apps
+
+Launchpad builds the binary packages. Do not upload the locally built .deb as a
+PPA source upload. No signing key, passphrase, token, or private path belongs in
+this repository or in CI logs.
