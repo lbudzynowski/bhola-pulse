@@ -11,6 +11,14 @@ override_dh_auto_clean:
 
 override_dh_auto_test:
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	set -eu; \
+	temporary_git=0; \
+	if [ ! -d .git ]; then \
+		git init -q; \
+		git add -A; \
+		temporary_git=1; \
+	fi; \
+	trap 'if [ "$$temporary_git" = 1 ]; then rm -rf .git; fi' EXIT HUP INT TERM; \
 	PYTHONDONTWRITEBYTECODE=1 bash scripts/check.sh
 endif
 
