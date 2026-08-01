@@ -1,0 +1,35 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	:
+
+override_dh_auto_clean:
+	:
+
+override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	PYTHONDONTWRITEBYTECODE=1 bash scripts/check.sh
+endif
+
+override_dh_auto_install:
+	install -d \
+		debian/bhola-pulse/usr/bin \
+		debian/bhola-pulse/usr/lib/bhola-pulse/scripts
+	install -m 0755 packaging/bhola-pulse debian/bhola-pulse/usr/bin/bhola-pulse
+	install -m 0755 scripts/run-dev.sh debian/bhola-pulse/usr/lib/bhola-pulse/scripts/run-dev.sh
+	install -m 0644 VERSION debian/bhola-pulse/usr/lib/bhola-pulse/VERSION
+	cp -a src conky config debian/bhola-pulse/usr/lib/bhola-pulse/
+	find debian/bhola-pulse/usr/lib/bhola-pulse -type d -name __pycache__ -prune -exec rm -rf -- {} +
+	find debian/bhola-pulse/usr/lib/bhola-pulse -type f -name '*.py[co]' -delete
+	find debian/bhola-pulse -type d -exec chmod 0755 {} +
+	find debian/bhola-pulse/usr/lib/bhola-pulse -type f -exec chmod 0644 {} +
+	chmod 0755 debian/bhola-pulse/usr/bin/bhola-pulse
+	chmod 0755 debian/bhola-pulse/usr/lib/bhola-pulse/scripts/run-dev.sh
+
+override_dh_fixperms:
+	dh_fixperms
+	find debian/bhola-pulse -type d -exec chmod 0755 {} +
+	chmod 0755 debian/bhola-pulse/usr/lib/bhola-pulse/scripts/run-dev.sh
