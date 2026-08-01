@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+app_root=${BHOLA_PULSE_LIBDIR:-/usr/lib/bhola-pulse}
+config_home=${XDG_CONFIG_HOME:-${HOME:?HOME is required}/.config}
+state_home=${XDG_STATE_HOME:-${HOME:?HOME is required}/.local/state}
+config_dir="$config_home/bhola-pulse"
+config_file="$config_dir/style"
+state_file=${BHOLA_STATE_FILE:-$state_home/bhola-pulse/dashboard.json}
+
+usage() {
+    cat <<'EOF'
+Usage:
+  bhola-pulse [--check] [--style modern|nerd]
+  bhola-pulse config show
+  bhola-pulse config set modern|nerd
+  bhola-pulse config reset
+  bhola-pulse --version
+
+Precedence: --style, BHOLA_STYLE, saved user configuration, modern.
+EOF
+}
+
+valid_style() {
+    [[ $1 == modern || $1 == nerd ]]
+}
+
+show_version() {
+    if [[ -r $app_root/VERSION ]]; then
+        printf 'Bhola Pulse %s\n' "$(tr -d '[:space:]' < "$app_root/VERSION")"
+    else
+        printf 'Bhola Pulse (unknown version)\n'
+    fi
+}
+
+save_style() {
+    local style=$1
+    local temporary_file
+    if ! valid_style "$style"; then
+        printf 'Invalid style %q; expected modern or nerd.\n' "$style" >&2
+        exit 2
+    fi
+    umask 077
+    mkdir -p -- "$config_dir"
+    temporary_file=$(mktemp "$config_dir/.style.XXXXXX")
+    trap 'rm -f -- "$temporary_file"' EXIT
+    printf '%s\n' "$style" > "$temporary_file"
+    chmod 600 "$temporary_file"
+    mv -f -- "$temporary_file" "$config_file"
+    trap - EXIT
+    printf 'Saved Bhola Pulse style: %s\n' "$style"
+}
+
+configured_style() {
+    local style
+    if [[ ! -r $config_file ]]; then
+        printf 'modern\n'
+        return
+    fi
+    IFS= read -r style < "$config_file" || true
+    if ! valid_style "$style"; then
+        printf 'Invalid saved style in %s; expected modern or nerd.\n' "$config_file" >&2
+        exit 2
+    fi
+    printf '%s\n' "$style"
+}
+
+case ${1:-} in
+    config)
+        case ${2:-show} in
+            show)
+                if (($# > 2)); then
+                    usage >&2
+                    exit 2
+                fi
+                if [[ -r $config_file ]]; then
+                    printf 'style=%s source=%s\n' "$(configured_style)" "$config_file"
+                else
+                    printf 'style=modern source=default\n'
+                fi
+                ;;
+            set)
+                if (($# != 3)); then
+                    usage >&2
+                    exit 2
+                fi
+                save_style "$3"
+                ;;
+            modern|nerd)
+                if (($# != 2)); then
+                    usage >&2
+                    exit 2
+                fi
+                save_style "$2"
+                ;;
+            reset)
+                if (($# != 2)); then
+                    usage >&2
+                    exit 2
+                fi
+                rm -f -- "$config_file"
+                printf 'Bhola Pulse style reset to default: modern\n'
+                ;;
+            *)
+                usage >&2
+                exit 2
+                ;;
+        esac
+        exit 0
+        ;;
+    --version)
+        show_version
+        exit 0
+        ;;
+    --help|-h)
+        usage
+        exit 0
+        ;;
+esac
+
+if [[ -z ${BHOLA_STYLE+x} && -r $config_file ]]; then
+    export BHOLA_STYLE
+    BHOLA_STYLE=$(configured_style)
+fi
+export BHOLA_STATE_FILE="$state_file"
+
+exec "$app_root/scripts/run-dev.sh" "$@"

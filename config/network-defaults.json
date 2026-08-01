@@ -1,0 +1,12 @@
+{
+  "dns_interval_seconds": 60,
+  "dns_name": "example.com",
+  "gateway_interval_seconds": 30,
+  "https_interval_seconds": 60,
+  "https_url": "https://example.com/",
+  "internet_interval_seconds": 45,
+  "internet_target": "1.1.1.1",
+  "probe_timeout_seconds": 2.5,
+  "public_ip_interval_seconds": 21600,
+  "public_ip_url": "https://api.ipify.org/"
+}

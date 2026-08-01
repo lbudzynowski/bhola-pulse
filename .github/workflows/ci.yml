@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "agent/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python, shell, and Debian package checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check repository privacy
+        run: python3 scripts/privacy-check.py
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run standard checks
+        run: bash scripts/check.sh
+
+      - name: Build Debian package
+        run: bash scripts/build-deb.sh
+
+      - name: Inspect Debian package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(tr -d '[:space:]' < VERSION)
+          deb="dist/bhola-pulse_${version}_all.deb"
+          test -f "$deb"
+          test -f dist/SHA256SUMS
+          (cd dist && sha256sum --check SHA256SUMS)
+          test "$(dpkg-deb --field "$deb" Package)" = bhola-pulse
+          test "$(dpkg-deb --field "$deb" Version)" = "$version"
+          test "$(dpkg-deb --field "$deb" Architecture)" = all
+          rm -rf package-root
+          dpkg-deb --extract "$deb" package-root
+          mapfile -d '' unexpected_directories < <(
+            find package-root -type d ! -perm 0755 -print0
+          )
+          if (( ${#unexpected_directories[@]} > 0 )); then
+            printf 'Directories with modes other than 0755 found in extracted package:\n' >&2
+            for directory in "${unexpected_directories[@]}"; do
+              printf '  %s (mode %s)\n' \
+                "$directory" \
+                "$(stat -c '%a' -- "$directory")" >&2
+            done
+            exit 1
+          fi
+          test -x package-root/usr/bin/bhola-pulse
+          test -x package-root/usr/lib/bhola-pulse/scripts/run-dev.sh
+          test -f package-root/usr/lib/bhola-pulse/conky/bhola_render.lua
+          test -f package-root/usr/lib/bhola-pulse/conky/bhola_render_nerd.lua
+          test ! -e package-root/usr/lib/bhola-pulse/state
+          HOME="$RUNNER_TEMP/bhola-home" \
+          XDG_CONFIG_HOME="$RUNNER_TEMP/bhola-config" \
+          XDG_STATE_HOME="$RUNNER_TEMP/bhola-state" \
+          BHOLA_PULSE_LIBDIR="$PWD/package-root/usr/lib/bhola-pulse" \
+            package-root/usr/bin/bhola-pulse --version
+
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: bhola-pulse-debian
+          path: |
+            dist/*.deb
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+  release:
+    name: Publish versioned release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build release assets
+        run: bash scripts/build-deb.sh
+
+      - name: Create tag and GitHub release when missing
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(tr -d '[:space:]' < VERSION)
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            printf 'Release %s already exists; leaving it unchanged.\n' "$tag"
+            exit 0
+          fi
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            printf 'Tag %s already exists without a release; reusing it.\n' "$tag"
+          else
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git tag -a "$tag" -m "Bhola Pulse $tag"
+            git push origin "$tag"
+          fi
+          gh release create "$tag" \
+            dist/*.deb \
+            dist/SHA256SUMS \
+            --verify-tag \
+            --title "Bhola Pulse $tag" \
+            --generate-notes
