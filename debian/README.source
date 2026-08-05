@@ -1,36 +1,60 @@
 Bhola Pulse source packages for Launchpad
 =========================================
 
-The PPA source builder is intentionally pinned to upstream commit
-3d11f266ae60da6035d0416dbf88f1624465566d, which contains the verified 0.1.1
-snapshot and the corrected installation example. Debian packaging files are
-copied from the current branch after the upstream archive is created.
+The signed PPA source builder is intentionally pinned to the immutable
+`v0.1.2` release commit:
 
-That release builder must reject the unreleased 0.1.2 runtime payload. Pull
-requests use the separate unsigned validation builder instead:
+    009ca2331f2a14159f26a31fe7fa193859676750
+
+Release identity and version-policy metadata live in:
+
+    debian/ppa-release.conf
+
+The upstream archive is created only from that exact release commit and excludes
+the top-level `debian/` directory. Debian packaging is then added exclusively
+from the clean, committed current `HEAD`. The builder never copies the live
+working tree and rejects staged, modified, deleted, or untracked files.
+
+The release builder also refuses when any installed-runtime path differs from
+the pinned release snapshot. Pull requests that intentionally change runtime
+code continue to use the separate unsigned validation builder:
 
     bash debian/build-pr-source noble
     bash debian/build-pr-source resolute
 
 Its `~pr1~` source packages exist only to exercise extraction, binary rebuild,
 payload inspection, and debhelper-generated systemd lifecycle scripts. They are
-never signed or uploaded. Updating the verified release pin is a distinct
-post-review release action and must use an immutable verified commit.
+never signed or uploaded.
+
+PPA versions for this release are:
+
+    0.1.2-2~ppa1~noble1
+    0.1.2-2~ppa1~resolute1
+
+The Debian revision is deliberately `2`: these PPA builds sort newer than the
+standalone GitHub package `0.1.2-1`, so an existing installation can move under
+APT/PPA management normally. The `~ppa1~...` suffix keeps them older than a
+future plain `0.1.2-2` package.
 
 Build unsigned source uploads from the repository root:
 
     bash debian/build-ppa-source noble
     bash debian/build-ppa-source resolute
 
-The Noble upload includes bhola-pulse_0.1.1.orig.tar.xz. The Resolute upload is
-built with -sd and reuses the same orig archive after Noble has been accepted.
+The Noble upload includes `bhola-pulse_0.1.2.orig.tar.xz`. The Resolute upload
+is built with `-sd` and reuses the identical upstream archive after Noble has
+been accepted by Launchpad.
 
-Before upload, inspect the generated .dsc and _source.changes files, sign each
-_source.changes file with the OpenPGP key associated with the Launchpad account,
-and upload only the signed source package to:
+Before upload:
 
-    ppa:lbudzynowski/apps
+1. inspect the generated `.dsc`, `_source.changes`, and `_source.buildinfo`;
+2. verify all checksums and the Distribution/Version fields;
+3. sign each `_source.changes` file with the OpenPGP key associated with the
+   Launchpad account;
+4. upload only the signed source package to:
 
-Launchpad builds the binary packages. Do not upload the locally built .deb as a
-PPA source upload. No signing key, passphrase, token, or private path belongs in
-this repository or in CI logs.
+       ppa:lbudzynowski/apps
+
+Launchpad builds the binary packages. Do not upload a locally built `.deb` as a
+PPA source upload. No signing key, passphrase, token, private path, or generated
+source artifact belongs in the repository or CI logs.
