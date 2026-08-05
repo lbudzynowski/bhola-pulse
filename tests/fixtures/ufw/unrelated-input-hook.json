@@ -1,0 +1,7 @@
+{"nftables":[
+  {"table":{"family":"inet","name":"filter"}},
+  {"chain":{"family":"inet","table":"filter","name":"host-input","type":"filter","hook":"input","prio":0,"policy":"drop"}},
+  {"chain":{"family":"inet","table":"filter","name":"application-allow"}},
+  {"rule":{"family":"inet","table":"filter","chain":"host-input","expr":[{"jump":{"target":"application-allow"}}]}},
+  {"rule":{"family":"inet","table":"filter","chain":"application-allow","expr":[{"accept":null}]}}
+]}
