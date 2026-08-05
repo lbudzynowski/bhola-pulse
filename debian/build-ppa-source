@@ -61,7 +61,7 @@ fi
 rm -rf -- "$output_root"
 install -d "$output_root"
 
-git -C "$project_root" archive \
+git -C "$project_root" -c tar.umask=0022 archive \
     --format=tar \
     --prefix="${source_dir_name}/" \
     --output="$orig_tar" \

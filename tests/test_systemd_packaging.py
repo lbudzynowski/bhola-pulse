@@ -136,12 +136,10 @@ class PackagingPolicyTests(unittest.TestCase):
             "bhola-pulse-ufw-probe.timer",
         ):
             self.assertIn(path, rules)
-        self.assertEqual(
-            stat.S_IMODE((ROOT / "src/bhola_ufw_probe.py").stat().st_mode),
-            0o755,
-        )
-        self.assertEqual(stat.S_IMODE(SERVICE.stat().st_mode), 0o644)
-        self.assertEqual(stat.S_IMODE(TIMER.stat().st_mode), 0o644)
+        probe_mode = stat.S_IMODE((ROOT / "src/bhola_ufw_probe.py").stat().st_mode)
+        self.assertEqual(probe_mode & 0o111, 0o111)
+        self.assertEqual(stat.S_IMODE(SERVICE.stat().st_mode) & 0o111, 0)
+        self.assertEqual(stat.S_IMODE(TIMER.stat().st_mode) & 0o111, 0)
 
     def test_runtime_has_no_privilege_escalation_or_mutating_nft_command(self) -> None:
         paths = [

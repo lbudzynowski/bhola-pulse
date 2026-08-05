@@ -111,6 +111,9 @@ jobs:
           test -x "$package_root/usr/lib/bhola-pulse/scripts/run-dev.sh"
           test -f "$package_root/lib/systemd/system/bhola-pulse-ufw-probe.service"
           test -f "$package_root/lib/systemd/system/bhola-pulse-ufw-probe.timer"
+          test "$(stat -c '%a' "$package_root/usr/lib/bhola-pulse/bhola-pulse-ufw-probe")" = 755
+          test "$(stat -c '%a' "$package_root/lib/systemd/system/bhola-pulse-ufw-probe.service")" = 644
+          test "$(stat -c '%a' "$package_root/lib/systemd/system/bhola-pulse-ufw-probe.timer")" = 644
           test -f "$package_root/usr/lib/bhola-pulse/conky/bhola_render.lua"
           test -f "$package_root/usr/lib/bhola-pulse/conky/bhola_render_nerd.lua"
           test ! -e "$package_root/usr/lib/bhola-pulse/state"

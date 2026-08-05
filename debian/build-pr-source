@@ -35,18 +35,22 @@ if ! git -C "$project_root" diff --quiet --ignore-submodules -- || \
 fi
 
 rm -rf -- "$output_root"
-install -d "$source_dir"
-git -C "$project_root" archive HEAD | tar -xf - -C "$source_dir"
-rm -rf -- "$source_dir/debian"
-(
-    cd "$output_root"
-    tar -cf "$(basename -- "$orig_tar")" \
-        --exclude="${source_dir_name}/debian" \
-        "$source_dir_name"
+install -d "$output_root"
+mapfile -t upstream_paths < <(
+    git -C "$project_root" ls-tree --name-only HEAD | awk '$0 != "debian"'
 )
+git -C "$project_root" -c tar.umask=0022 archive \
+    --format=tar \
+    --prefix="${source_dir_name}/" \
+    --output="$orig_tar" \
+    HEAD \
+    -- "${upstream_paths[@]}"
+tar -xf "$orig_tar" -C "$output_root"
 xz -9 --force "$orig_tar"
 
 cp -a "$project_root/debian" "$source_dir/debian"
+find "$source_dir/debian" -type d -exec chmod 0755 {} +
+find "$source_dir/debian" -type f -exec chmod 0644 {} +
 chmod 0755 "$source_dir/debian/rules" \
     "$source_dir/debian/build-ppa-source" \
     "$source_dir/debian/build-pr-source"
