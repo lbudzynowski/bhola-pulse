@@ -15,28 +15,49 @@ bounded network probes (max 2 workers) --+--> one Python provider
                                           state/dashboard.json
                                                     |
                                                     v
-                                        Conky + Lua/Cairo dashboard
+                                  monitor supervisor --> Conky + Lua/Cairo
 ```
 
-One long-lived unprivileged Python process schedules every dashboard source and owns one bounded
-thread pool for network probes. One Conky per monitor owns a transparent,
-click-through, top-right X11/XWayland window. The default one-monitor render
-interval is 0.15 seconds; startup selects 0.25 seconds for two monitors and 0.35
-seconds for three or more. Every instance reads the same cache. All four visible
-sections share the same snapshot and never start their own collectors.
+One long-lived unprivileged Python process schedules every dashboard source and
+owns one bounded thread pool for network probes. One foreground monitor
+supervisor owns the complete Conky presentation generation. One Conky per active
+monitor owns a transparent, click-through, top-right X11/XWayland window. The
+default one-monitor render interval is 0.15 seconds; the supervisor selects 0.25
+seconds for two monitors and 0.35 seconds for three or more. Every instance reads
+the same cache. All four visible sections share the same snapshot and never
+start their own collectors.
 
-`scripts/run-dev.sh` discovers active monitor indices through a bounded,
-read-only `xrandr --listactivemonitors` call at startup. It starts one Conky on
-each corresponding Xinerama head and one shared provider. If discovery is
-unavailable or malformed, it safely falls back to head 0. After each Conky
-creates its uniquely titled window, a short-lived Python helper finds the
-single matching window by PID when available or by that fixed title, applies an
-empty XShape input region, verifies the result, and exits. Ambiguous matches
-fail closed. The launcher's signal and exit traps terminate every Conky and the
-provider, then wait for all of them. The provider handles
-SIGINT and SIGTERM with an event-driven stop and sleeps until the next scheduled
-source. There is no dashboard daemon or autostart entry. The package includes
-one separate systemd timer for the short, read-only UFW verification oneshot.
+`scripts/run-dev.sh` starts the provider once, waits for its first atomic cache,
+and then starts `src.bhola_runtime`. The supervisor obtains bounded, read-only
+snapshots through `xrandr --listactivemonitors`. A snapshot is reliable only
+when its declared monitor count matches the complete set of parsed numeric
+Xinerama heads. Startup falls back to head 0 when discovery is unavailable, but
+runtime failures, timeouts, malformed output, and incomplete snapshots are
+ignored instead of being interpreted as a monitor removal.
+
+The supervisor polls every two seconds by default. A changed topology must be
+observed in two consecutive complete matching snapshots before it is accepted.
+After acceptance, the supervisor terminates and waits for the old Conky
+generation before creating exactly one new Conky for each active head. The
+provider and cache remain alive throughout the presentation restart. Each new
+window receives the render interval selected for the new monitor count, its
+per-head scale, the already resolved style, and the shared cache path. A
+short-lived Python helper then finds the single matching window by PID when
+available or by its fixed title, applies an empty XShape input region, verifies
+the result, and exits. Ambiguous matches fail closed.
+
+The launcher's signal and exit traps terminate the supervisor and provider and
+wait for both. The supervisor handles SIGINT and SIGTERM through an event-driven
+stop, terminates every child Conky, waits up to a bounded grace period, and uses
+SIGKILL only for a child that did not exit. An unexpected Conky exit fails the
+supervisor and therefore tears down the complete foreground launch instead of
+leaving a partial dashboard. There is no dashboard daemon or autostart entry.
+The package includes one separate systemd timer for the short, read-only UFW
+verification oneshot.
+
+`BHOLA_MONITOR_POLL_INTERVAL` can change the diagnostic polling interval within
+0.2 to 30 seconds. It does not change the two-complete-snapshot acceptance rule.
+The production default remains two seconds.
 
 ## Source cadence
 
@@ -64,10 +85,10 @@ destination directory, flushes and fsyncs it, then replaces the target with
 the next complete document.
 
 The cache does not contain raw sensor paths, process arguments, usernames, home
-paths, interface names, hostnames, private URLs, or secrets. The top-process collector
-uses only `/proc/<pid>/comm`, sanitizes it to a short label, and marks its CPU
-value as an estimate. Service detection may inspect process arguments in memory
-but stores only an aggregate state.
+paths, interface names, hostnames, private URLs, or secrets. The top-process
+collector uses only `/proc/<pid>/comm`, sanitizes it to a short label, and marks
+its CPU value as an estimate. Service detection may inspect process arguments in
+memory but stores only an aggregate state.
 
 Schema v3 adds flat network fields so the intentionally small Lua reader never
 needs a general JSON library. Each probe exposes a status, source state,
@@ -75,11 +96,12 @@ confidence, last-success timestamp, and age. Full public addresses exist only
 briefly in a probe worker; only a masked value is cached. Public defaults are
 versioned while local overrides remain below ignored `state/`.
 
-Conky renders animation at the startup-selected interval, but the Lua reader
+Conky renders animation at the supervisor-selected interval, but the Lua reader
 reparses the one-second cache at most twice per second. This preserves calm
 motion and sub-second telemetry pickup without repeating JSON pattern scans on
 every animation frame. Animation displacement is derived from the same selected
-interval, so movement speed remains stable across monitor counts.
+interval, so movement speed remains stable across monitor counts and after
+hotplug recovery.
 
 ## Local sources
 
@@ -110,8 +132,8 @@ data, and have a hard timeout.
 Status meanings are shared across the renderer:
 
 - `ok`: a sufficiently strong current signal confirms operation;
-- `degraded`: a partial positive signal, failed refresh with retained good
-  data, or enabled UFW configuration with freshly verified inactive runtime;
+- `degraded`: a partial positive signal, failed refresh with retained good data,
+  or enabled UFW configuration with freshly verified inactive runtime;
 - `error`: a positive failure signal such as complete loss or unreachable
   target;
 - `off`: a known component is configured or present but inactive;
@@ -134,17 +156,17 @@ distinguish the cells without creating a card, fill, or outer border.
 
 System Pulse keeps the large clock, Polish date, CPU ring, scanner, core graph,
 CPU/RAM/load, and three temperatures. System Activity keeps disk rates,
-processes, uptime, top activity, and its radar graph. Status Grid retains its
-six state cells plus power/battery. Network & Services keeps Internet state,
+processes, uptime, top activity, and its radar graph. Status Grid retains its six
+state cells plus power/battery. Network & Services keeps Internet state,
 latency/loss, DNS, HTTPS, transfer rates, route/gateway, the network graph, and
 five local-service indicators.
 
 A single clipped ticker spans the bottom of the complete grid and contains only
 short summaries derived from the cache. Larger headers, values, labels, status
-points, and graphs restore readability compared with the narrow vertical
-stack. The 28-pixel top gap plus 570-pixel configured panel height occupies only
-the upper portion of a 1080-pixel Full HD monitor, keeping the previous
-right-bottom desktop-icon area outside the dashboard window.
+points, and graphs restore readability compared with the narrow vertical stack.
+The 28-pixel top gap plus 570-pixel configured panel height occupies only the
+upper portion of a 1080-pixel Full HD monitor, keeping the previous right-bottom
+desktop-icon area outside the dashboard window.
 
 Ticker, scanner, radar, status pulse, and temperature alarm pulse use
 pixel-per-second or radian-per-second rates derived from the animation clock.
@@ -156,8 +178,9 @@ speed.
 The launcher resolves presentation before starting the provider. The explicit
 `--style` option has priority over `BHOLA_STYLE`; an absent selection resolves
 to `modern`. Any value outside `modern` and `nerd` fails before a runtime process
-is created. The resolved value is passed unchanged to every per-monitor Conky,
-so one launch cannot mix accidental renderer defaults across monitors.
+is created. The resolved value is passed unchanged to every per-monitor Conky
+and every replacement generation, so one launch cannot mix accidental renderer
+defaults across monitors.
 
 `modern` remains the default LARGE SHARP renderer in `bhola_render.lua`. It
 retains the scaled Cairo rings, smooth traces, flat status points, current
@@ -194,15 +217,16 @@ PEAK in both halves of each bank.
 
 SYSTEM PULSE uses three larger character-only VU meters for CPU, RAM, and NVMe
 temperature. Each has a fixed `0 50 100` scale, a fixed `o` pivot, a visible
-numeric value, and nine discrete needle positions composed only of `/`, `|`,
-and `\`. CPU and RAM use 0–100%; NVMe uses 0–100°C and shows `?` when data is
+numeric value, and nine discrete needle positions composed only of `/`, `|`, and
+`\`. CPU and RAM use 0–100%; NVMe uses 0–100°C and shows `?` when data is
 unavailable. The former decorative OSC and SCN rows are removed to provide the
 vertical space. LOAD plus CPU/GPU temperatures share one compact line below the
 meters. This is presentation-only and does not change collection cadence or the
 cache schema.
 
 Style selection does not alter provider scheduling, cache schema, monitor
-discovery, per-monitor scale, click-through, render cadence, or cleanup.
+snapshot validation, per-monitor scale, click-through verification, render
+cadence, or cleanup.
 
 Temperature color points are:
 
@@ -213,15 +237,17 @@ Temperature color points are:
 - 95°C and above: alarm red.
 
 Linear interpolation avoids abrupt changes between points. Temperatures at or
-above 85°C gain a subtle alpha pulse. Unavailable sensors render neutral gray
-as `N/A`.
+above 85°C gain a subtle alpha pulse. Unavailable sensors render neutral gray as
+`N/A`.
 
 ## Deliberate boundaries
 
-- The provider and renderer use the Python and Lua standard facilities already
-  present on the host; no package is installed.
+- The provider, supervisor, and renderer use the Python and Lua standard
+  facilities already present on the host; no package is installed.
 - Runtime state stays under ignored `state/`.
-- Active monitors are discovered only at launcher startup. Hotplug recovery
-  remains backlog; display layout and GNOME settings are untouched.
+- Hotplug observes topology read-only. It does not configure displays, alter
+  XRandR layout, change GNOME settings, or create a background daemon.
+- Session autostart remains outside this iteration and must be designed only
+  after physical hotplug validation.
 - Google Calendar, GitHub, A1, printer telemetry, authenticated services, and
   remote monitor APIs remain outside this iteration.

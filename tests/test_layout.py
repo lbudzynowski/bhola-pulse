@@ -214,20 +214,27 @@ class TwoColumnLayoutTests(unittest.TestCase):
         self.assertLess(ticker_y, ticker_baseline)
         self.assertLess(ticker_baseline, height)
 
-    def test_launcher_enforces_verified_click_through_and_monitor_scales(self) -> None:
+    def test_launcher_and_runtime_enforce_click_through_and_monitor_scales(self) -> None:
         launcher = (ROOT / "scripts/run-dev.sh").read_text(encoding="utf-8")
+        runtime = (ROOT / "src/bhola_runtime.py").read_text(encoding="utf-8")
         helper = (ROOT / "src/bhola_clickthrough.py").read_text(encoding="utf-8")
 
         self.assertIn("src.bhola_clickthrough --check", launcher)
-        self.assertIn("src.bhola_clickthrough --pid", launcher)
-        self.assertIn("--xinerama-head", launcher)
-        self.assertIn("src.bhola_monitors --indices", launcher)
-        self.assertIn("src.bhola_monitors --render-interval", launcher)
-        self.assertIn('window_title="conky (Bhola ${monitor_index})"', launcher)
-        self.assertIn('scale_variable="BHOLA_SCALE_HEAD_${monitor_index}"', launcher)
-        self.assertIn('BHOLA_SCALE="$monitor_scale"', launcher)
-        self.assertIn('BHOLA_STYLE="$dashboard_style"', launcher)
+        self.assertIn("src.bhola_runtime --check", launcher)
+        self.assertIn(
+            'python3 -m src.bhola_runtime --state-file "$state_file" --style "$dashboard_style"',
+            launcher,
+        )
         self.assertIn('dashboard_style=$(python3 -m src.bhola_style', launcher)
+        self.assertIn('"src.bhola_clickthrough"', runtime)
+        self.assertIn('"--pid"', runtime)
+        self.assertIn('"--name"', runtime)
+        self.assertIn('f"--xinerama-head={launch.index}"', runtime)
+        self.assertIn('variable_name = f"BHOLA_SCALE_HEAD_{index}"', runtime)
+        self.assertIn('"BHOLA_SCALE": launch.scale', runtime)
+        self.assertIn('"BHOLA_STYLE": style', runtime)
+        self.assertIn("discoverer=discover_monitor_snapshot", runtime)
+        self.assertIn("required_observations: int = 2", runtime)
         self.assertIn("ShapeInput", helper)
         self.assertIn("count.value == 0", helper)
 

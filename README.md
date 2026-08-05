@@ -30,8 +30,10 @@ never receives firewall capabilities.
 
 ## Dashboard
 
-Bhola Pulse renders the same four-section 760×570 dashboard on every monitor
-active at startup:
+Bhola Pulse renders the same four-section 760×570 dashboard on every currently
+active monitor. A foreground runtime supervisor watches bounded read-only XRandR
+snapshots and safely rebuilds only the Conky presentation layer after a stable
+monitor connection or disconnection:
 
 - **System Pulse** — CPU, RAM, load, uptime, temperatures, power, battery, and
   three large meters;
@@ -41,9 +43,9 @@ active at startup:
 - **Network & Services** — aggregate RX/TX, route presence, bounded gateway,
   Internet, DNS, HTTPS, and masked public-address probes.
 
-All windows share one provider and one atomically replaced cache. The cache does
-not contain interface names, hostnames, process arguments, private URLs,
-credentials, or a complete public address.
+All windows share one provider and one atomically replaced cache. Hotplug never
+starts a second provider. The cache does not contain interface names, hostnames,
+process arguments, private URLs, credentials, or a complete public address.
 
 ### Presentation styles
 
@@ -95,8 +97,9 @@ bhola-pulse --check
 bhola-pulse
 ```
 
-Stop the foreground dashboard with `Ctrl+C`. The launcher terminates every Conky
-instance and the shared provider and does not leave a daemon behind.
+Stop the foreground dashboard with `Ctrl+C`. The launcher terminates the runtime
+supervisor, every Conky instance, and the shared provider and does not leave a
+daemon behind.
 
 The package depends on:
 
@@ -181,10 +184,16 @@ statuses every 12 seconds, and the optional update count no more than hourly.
 The current standard-library implementation reports the update count as
 `unknown` instead of spawning a package manager or refreshing package metadata.
 
-With one monitor Conky renders every 0.15 seconds. Startup selection increases
-the interval to 0.25 seconds for two monitors and 0.35 seconds for three or more.
-Monitor discovery occurs once at startup. Automatic recovery after later
-monitor hotplug remains an explicit backlog item.
+With one monitor Conky renders every 0.15 seconds. The runtime supervisor uses
+0.25 seconds for two monitors and 0.35 seconds for three or more. It samples
+`xrandr --listactivemonitors` every two seconds and accepts a changed topology
+only after two consecutive complete, matching snapshots. Failed, timed-out,
+malformed, or incomplete samples are ignored and cannot masquerade as a monitor
+removal. On an accepted change, the supervisor stops the old Conky generation,
+starts exactly one instance per active Xinerama head, reapplies verified
+click-through, and keeps the original provider and cache alive. The diagnostic
+poll interval may be set with `BHOLA_MONITOR_POLL_INTERVAL` between 0.2 and 30
+seconds; the default remains two seconds.
 
 Temperature colors interpolate between cool cyan at 45°C and below, normal
 green at 65°C, warm yellow at 75°C, high orange at 85°C, and alarm red at 95°C.
@@ -196,7 +205,7 @@ Missing sensors use neutral gray and `N/A`.
 - `packaging/debian/` — Debian package metadata;
 - `packaging/systemd/` — capability-bounded UFW probe service and timer;
 - `scripts/build-deb.sh` — package and SHA-256 builder;
-- `scripts/run-dev.sh` — foreground multi-monitor lifecycle;
+- `scripts/run-dev.sh` — foreground provider and runtime-supervisor lifecycle;
 - `conky/bhola-pulse.conf` — transparent Conky window and render cadence;
 - `conky/bhola_pulse.lua` — style selection and shared scaled draw hook;
 - `conky/bhola_render.lua` — `modern` renderer;
@@ -209,9 +218,10 @@ Missing sensors use neutral gray and `N/A`.
 - `src/bhola_services.py` — confidence-aware read-only local service status;
 - `src/bhola_ufw_probe.py` — privileged parser and minimal atomic runtime state;
 - `src/bhola_clickthrough.py` — one-shot verified XShape input-region helper;
-- `src/bhola_monitors.py` — sanitized startup-only active-monitor discovery;
+- `src/bhola_monitors.py` — sanitized complete active-monitor snapshots;
+- `src/bhola_runtime.py` — debounced hotplug and per-monitor Conky supervision;
 - `src/bhola_style.py` — validated CLI/environment style resolution;
-- `tests/` — environment-independent provider, layout, and packaging tests.
+- `tests/` — environment-independent provider, runtime, layout, and packaging tests.
 
 ## License
 
