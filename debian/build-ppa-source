@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 0022
 
 if [[ $# -ne 1 ]]; then
     printf 'Usage: %s noble|resolute\n' "$0" >&2
     exit 2
 fi
 
-series="$1"
+series=$1
 case "$series" in
     noble)
-        package_version="0.1.1-1~ppa1~noble1"
-        orig_option="-sa"
+        orig_option=-sa
         ;;
     resolute)
-        package_version="0.1.1-1~ppa1~resolute1"
-        orig_option="-sd"
+        orig_option=-sd
         ;;
     *)
         printf 'Unsupported Ubuntu series: %s\n' "$series" >&2
@@ -22,59 +21,159 @@ case "$series" in
         ;;
 esac
 
-project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-upstream_version="0.1.1"
-upstream_ref="3d11f266ae60da6035d0416dbf88f1624465566d"
-source_name="bhola-pulse"
-source_dir_name="${source_name}-${upstream_version}"
+project_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+release_config="$project_root/debian/ppa-release.conf"
+if [[ ! -r $release_config ]]; then
+    printf 'Missing PPA release configuration: %s\n' "$release_config" >&2
+    exit 1
+fi
+# The file is committed packaging metadata containing assignments and one array.
+# shellcheck source=debian/ppa-release.conf
+source "$release_config"
+
+if [[ ! ${PPA_UPSTREAM_VERSION:-} =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]] ||
+   [[ ! ${PPA_UPSTREAM_REF:-} =~ ^[0-9a-f]{40}$ ]] ||
+   [[ ! ${PPA_DEBIAN_REVISION:-} =~ ^[1-9][0-9]*$ ]] ||
+   [[ ! ${PPA_ITERATION:-} =~ ^[1-9][0-9]*$ ]] ||
+   [[ -z ${PPA_RELEASE_TAG:-} ]] ||
+   [[ -z ${PPA_RELEASE_BINARY_VERSION:-} ]] ||
+   (( ${#PPA_RUNTIME_PATHS[@]} == 0 )); then
+    printf 'Invalid PPA release configuration.\n' >&2
+    exit 1
+fi
+
+if ! git_root=$(git -C "$project_root" rev-parse --show-toplevel 2>/dev/null); then
+    printf 'PPA source build requires a valid Git worktree.\n' >&2
+    exit 1
+fi
+git_root=$(cd -- "$git_root" && pwd)
+if [[ $git_root != "$project_root" ]] ||
+   [[ $(git -C "$project_root" rev-parse --is-inside-work-tree 2>/dev/null) != true ]]; then
+    printf 'PPA source builder is not at the root of its Git worktree.\n' >&2
+    exit 1
+fi
+
+if ! head_commit=$(git -C "$project_root" rev-parse --verify --quiet 'HEAD^{commit}'); then
+    printf 'PPA source build requires a valid committed HEAD.\n' >&2
+    exit 1
+fi
+if ! worktree_state=$(git -C "$project_root" status --porcelain=v1 --untracked-files=all 2>&1); then
+    printf 'Unable to verify Git worktree state; refusing PPA source build.\n' >&2
+    exit 1
+fi
+if [[ -n $worktree_state ]]; then
+    printf 'PPA source build requires a clean worktree with no staged, modified, or untracked files.\n' >&2
+    exit 1
+fi
+
+for command_name in git tar xz dpkg dpkg-buildpackage sed install awk; do
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+        printf 'Missing PPA source build command: %s\n' "$command_name" >&2
+        exit 1
+    fi
+done
+
+if ! pinned_commit=$(git -C "$project_root" rev-parse --verify --quiet "${PPA_UPSTREAM_REF}^{commit}"); then
+    printf 'Missing pinned upstream commit: %s\n' "$PPA_UPSTREAM_REF" >&2
+    exit 1
+fi
+if [[ $pinned_commit != "$PPA_UPSTREAM_REF" ]]; then
+    printf 'Pinned upstream reference did not resolve exactly to the configured commit.\n' >&2
+    exit 1
+fi
+if ! tag_commit=$(git -C "$project_root" rev-parse --verify --quiet "${PPA_RELEASE_TAG}^{commit}"); then
+    printf 'Missing immutable release tag: %s\n' "$PPA_RELEASE_TAG" >&2
+    exit 1
+fi
+if [[ $tag_commit != "$PPA_UPSTREAM_REF" ]]; then
+    printf 'Release tag %s does not identify pinned commit %s.\n' \
+        "$PPA_RELEASE_TAG" "$PPA_UPSTREAM_REF" >&2
+    exit 1
+fi
+
+current_version=$(git -C "$project_root" show "${head_commit}:VERSION" | tr -d '[:space:]')
+pinned_version=$(git -C "$project_root" show "${PPA_UPSTREAM_REF}:VERSION" | tr -d '[:space:]')
+if [[ $current_version != "$PPA_UPSTREAM_VERSION" ]] ||
+   [[ $pinned_version != "$PPA_UPSTREAM_VERSION" ]]; then
+    printf 'VERSION does not match pinned PPA upstream version %s.\n' \
+        "$PPA_UPSTREAM_VERSION" >&2
+    exit 1
+fi
+
+if ! git -C "$project_root" diff --quiet \
+    "$PPA_UPSTREAM_REF" "$head_commit" -- "${PPA_RUNTIME_PATHS[@]}"; then
+    printf 'Runtime payload differs from pinned release commit %s; refusing to create a mismatched PPA source.\n' \
+        "$PPA_UPSTREAM_REF" >&2
+    exit 1
+fi
+
+package_version="${PPA_UPSTREAM_VERSION}-${PPA_DEBIAN_REVISION}~ppa${PPA_ITERATION}~${series}1"
+plain_revision="${PPA_UPSTREAM_VERSION}-${PPA_DEBIAN_REVISION}"
+if ! dpkg --compare-versions "$package_version" gt "$PPA_RELEASE_BINARY_VERSION"; then
+    printf 'PPA version %s must upgrade the released binary version %s.\n' \
+        "$package_version" "$PPA_RELEASE_BINARY_VERSION" >&2
+    exit 1
+fi
+if ! dpkg --compare-versions "$package_version" lt "$plain_revision"; then
+    printf 'PPA version %s must remain older than future plain revision %s.\n' \
+        "$package_version" "$plain_revision" >&2
+    exit 1
+fi
+
+source_name=bhola-pulse
+source_dir_name="${source_name}-${PPA_UPSTREAM_VERSION}"
 output_root="$project_root/build/ppa/$series"
 source_dir="$output_root/$source_dir_name"
-orig_tar="$output_root/${source_name}_${upstream_version}.orig.tar"
-
-if [[ "$(tr -d '[:space:]' < "$project_root/VERSION")" != "$upstream_version" ]]; then
-    printf 'VERSION does not match the pinned upstream version %s.\n' "$upstream_version" >&2
-    exit 1
-fi
-
-if ! git -C "$project_root" rev-parse --verify --quiet "${upstream_ref}^{commit}" >/dev/null; then
-    printf 'Missing pinned upstream commit: %s\n' "$upstream_ref" >&2
-    exit 1
-fi
-
-# The PPA archive is a release snapshot. Documentation, screenshots, and
-# repository-only QA may evolve after that release without changing the
-# installed package. Refuse only when the runtime payload for 0.1.1 differs
-# from the pinned, verified upstream commit.
-upstream_payload_paths=(
-    VERSION
-    packaging/bhola-pulse
-    scripts/run-dev.sh
-    src
-    conky
-    config
-)
-if ! git -C "$project_root" diff --quiet "$upstream_ref" -- "${upstream_payload_paths[@]}"; then
-    printf 'Runtime payload differs from pinned commit %s; refusing to create a mismatched orig archive.\n' "$upstream_ref" >&2
-    exit 1
-fi
+orig_tar="$output_root/${source_name}_${PPA_UPSTREAM_VERSION}.orig.tar"
 
 rm -rf -- "$output_root"
-install -d "$output_root"
+install -d -m 0755 "$output_root"
+
+mapfile -t upstream_paths < <(
+    git -C "$project_root" ls-tree --name-only "$PPA_UPSTREAM_REF" |
+        awk '$0 != "debian"'
+)
+if (( ${#upstream_paths[@]} == 0 )); then
+    printf 'Pinned release snapshot has no upstream paths.\n' >&2
+    exit 1
+fi
 
 git -C "$project_root" -c tar.umask=0022 archive \
     --format=tar \
     --prefix="${source_dir_name}/" \
     --output="$orig_tar" \
-    "$upstream_ref"
+    "$PPA_UPSTREAM_REF" \
+    -- "${upstream_paths[@]}"
 xz -9 --force "$orig_tar"
-
 tar -xJf "${orig_tar}.xz" -C "$output_root"
-cp -a "$project_root/debian" "$source_dir/debian"
-chmod 0755 "$source_dir/debian/rules" "$source_dir/debian/build-ppa-source"
+
+# Debian packaging comes only from the committed current HEAD. Never copy the
+# live worktree, and never place debian/ inside the immutable upstream tarball.
+git -C "$project_root" -c tar.umask=0022 archive \
+    --format=tar \
+    "$head_commit" \
+    -- debian |
+    tar --extract --no-same-owner --directory="$source_dir"
+
+find "$source_dir/debian" -type d -exec chmod 0755 {} +
+find "$source_dir/debian" -type f -exec chmod 0644 {} +
+chmod 0755 \
+    "$source_dir/debian/rules" \
+    "$source_dir/debian/build-ppa-source" \
+    "$source_dir/debian/build-pr-source"
+if [[ -e $source_dir/debian/debian ]]; then
+    printf 'Nested debian/debian directory detected; refusing malformed source package.\n' >&2
+    exit 1
+fi
 
 sed -i \
     "1s/^${source_name} ([^)]*) [^;]*;/${source_name} (${package_version}) ${series};/" \
     "$source_dir/debian/changelog"
+if ! head -n 1 "$source_dir/debian/changelog" |
+    grep -Fx "${source_name} (${package_version}) ${series}; urgency=medium" >/dev/null; then
+    printf 'Unable to set expected changelog version and distribution.\n' >&2
+    exit 1
+fi
 
 (
     cd "$source_dir"
@@ -83,8 +182,11 @@ sed -i \
 
 changes="$output_root/${source_name}_${package_version}_source.changes"
 dsc="$output_root/${source_name}_${package_version}.dsc"
+buildinfo="$output_root/${source_name}_${package_version}_source.buildinfo"
 test -f "$changes"
 test -f "$dsc"
+test -f "$buildinfo"
 
-printf 'Built unsigned %s source package in %s\n' "$series" "$output_root"
+printf 'Built unsigned %s PPA source package in %s\n' "$series" "$output_root"
+printf 'Version: %s\n' "$package_version"
 printf 'Changes: %s\n' "$changes"
