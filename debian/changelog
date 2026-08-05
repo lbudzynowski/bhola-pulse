@@ -1,3 +1,11 @@
+bhola-pulse (0.1.2-1) UNRELEASED; urgency=medium
+
+  * Add a capability-bounded systemd UFW runtime probe and timer.
+  * Consume only fresh, root-owned, validated runtime summaries.
+  * Report unavailable verification as unknown instead of degraded.
+
+ -- Łukasz Budzynowski <lbudzynowski@gmail.com>  Wed, 05 Aug 2026 20:59:00 +0200
+
 bhola-pulse (0.1.1-1~ppa1~noble1) noble; urgency=medium
 
   * Add standards-compliant Debian source packaging for Launchpad PPA builds.

@@ -1,0 +1,8 @@
+{"nftables":[
+  {"metainfo":{"json_schema_version":1}},
+  {"table":{"family":"inet","name":"filter"}},
+  {"chain":{"family":"inet","table":"filter","name":"host-input","type":"filter","hook":"input","prio":0,"policy":"accept"}},
+  {"chain":{"family":"inet","table":"filter","name":"ufw-before-input"}},
+  {"rule":{"family":"inet","table":"filter","chain":"host-input","expr":[{"counter":{"packets":4,"bytes":400}},{"jump":{"target":"ufw-before-input"}}]}},
+  {"rule":{"family":"inet","table":"filter","chain":"ufw-before-input","expr":[{"match":{"op":"==","left":{"meta":{"key":"l4proto"}},"right":"tcp"}},{"accept":null}]}}
+]}

@@ -4,8 +4,8 @@ Section: utils
 Priority: optional
 Architecture: all
 Maintainer: Łukasz Budzynowski <lbudzynowski@gmail.com>
-Depends: python3 (>= 3.11), conky-all, x11-xserver-utils, libx11-6
-Recommends: iputils-ping, nftables
+Depends: python3 (>= 3.11), conky-all, x11-xserver-utils, libx11-6, nftables
+Recommends: iputils-ping
 Homepage: https://github.com/lbudzynowski/bhola-pulse
 Description: animated system telemetry dashboard for Ubuntu GNOME
  Bhola Pulse is a transparent multi-monitor Conky dashboard with a single

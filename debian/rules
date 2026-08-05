@@ -25,9 +25,13 @@ endif
 override_dh_auto_install:
 	install -d \
 		debian/bhola-pulse/usr/bin \
-		debian/bhola-pulse/usr/lib/bhola-pulse/scripts
+		debian/bhola-pulse/usr/lib/bhola-pulse/scripts \
+		debian/bhola-pulse/lib/systemd/system
 	install -m 0755 packaging/bhola-pulse debian/bhola-pulse/usr/bin/bhola-pulse
+	install -m 0755 src/bhola_ufw_probe.py debian/bhola-pulse/usr/lib/bhola-pulse/bhola-pulse-ufw-probe
 	install -m 0755 scripts/run-dev.sh debian/bhola-pulse/usr/lib/bhola-pulse/scripts/run-dev.sh
+	install -m 0644 packaging/systemd/bhola-pulse-ufw-probe.service debian/bhola-pulse/lib/systemd/system/
+	install -m 0644 packaging/systemd/bhola-pulse-ufw-probe.timer debian/bhola-pulse/lib/systemd/system/
 	install -m 0644 VERSION debian/bhola-pulse/usr/lib/bhola-pulse/VERSION
 	cp -a src conky config debian/bhola-pulse/usr/lib/bhola-pulse/
 	find debian/bhola-pulse/usr/lib/bhola-pulse -type d -name __pycache__ -prune -exec rm -rf -- {} +
@@ -35,9 +39,11 @@ override_dh_auto_install:
 	find debian/bhola-pulse -type d -exec chmod 0755 {} +
 	find debian/bhola-pulse/usr/lib/bhola-pulse -type f -exec chmod 0644 {} +
 	chmod 0755 debian/bhola-pulse/usr/bin/bhola-pulse
+	chmod 0755 debian/bhola-pulse/usr/lib/bhola-pulse/bhola-pulse-ufw-probe
 	chmod 0755 debian/bhola-pulse/usr/lib/bhola-pulse/scripts/run-dev.sh
 
 override_dh_fixperms:
 	dh_fixperms
 	find debian/bhola-pulse -type d -exec chmod 0755 {} +
+	chmod 0755 debian/bhola-pulse/usr/lib/bhola-pulse/bhola-pulse-ufw-probe
 	chmod 0755 debian/bhola-pulse/usr/lib/bhola-pulse/scripts/run-dev.sh

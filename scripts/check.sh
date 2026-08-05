@@ -8,6 +8,12 @@ python3 scripts/privacy-check.py
 python3 -m compileall -q src tests
 python3 -m unittest discover -s tests -v
 python3 -m src.bhola_provider --check
-bash -n scripts/run-dev.sh scripts/check.sh scripts/build-deb.sh packaging/bhola-pulse
+bash -n \
+    scripts/run-dev.sh \
+    scripts/check.sh \
+    scripts/build-deb.sh \
+    packaging/bhola-pulse \
+    debian/build-ppa-source \
+    debian/build-pr-source
 
 printf 'All environment-independent checks passed.\n'

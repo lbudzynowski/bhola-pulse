@@ -56,16 +56,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends build-essential debhelper devscripts
 
-      - name: Build unsigned source package
-        run: bash debian/build-ppa-source "${{ matrix.series }}"
+      - name: Prove released PPA builder stays pinned and fail-closed
+        shell: bash
+        run: |
+          if bash debian/build-ppa-source "${{ matrix.series }}"; then
+            printf 'Pinned release builder unexpectedly accepted unreleased branch payload.\n' >&2
+            exit 1
+          fi
+          printf 'Pinned 0.1.1 PPA builder correctly rejected unreleased payload.\n'
+
+      - name: Build unsigned PR-validation source package
+        run: bash debian/build-pr-source "${{ matrix.series }}"
 
       - name: Extract, rebuild, and inspect source package
         shell: bash
         run: |
           set -euo pipefail
           series="${{ matrix.series }}"
-          expected="0.1.1-1~ppa1~${series}1"
-          source_root="build/ppa/${series}"
+          version=$(tr -d '[:space:]' < VERSION)
+          expected="${version}-1~pr1~${series}1"
+          source_root="build/pr/${series}"
           changes="${source_root}/bhola-pulse_${expected}_source.changes"
           dsc="${source_root}/bhola-pulse_${expected}.dsc"
           buildinfo="${source_root}/bhola-pulse_${expected}_source.buildinfo"
@@ -97,7 +107,13 @@ jobs:
           package_root="$RUNNER_TEMP/package-${series}"
           dpkg-deb --extract "$deb" "$package_root"
           test -x "$package_root/usr/bin/bhola-pulse"
+          test -x "$package_root/usr/lib/bhola-pulse/bhola-pulse-ufw-probe"
           test -x "$package_root/usr/lib/bhola-pulse/scripts/run-dev.sh"
+          test -f "$package_root/lib/systemd/system/bhola-pulse-ufw-probe.service"
+          test -f "$package_root/lib/systemd/system/bhola-pulse-ufw-probe.timer"
+          test "$(stat -c '%a' "$package_root/usr/lib/bhola-pulse/bhola-pulse-ufw-probe")" = 755
+          test "$(stat -c '%a' "$package_root/lib/systemd/system/bhola-pulse-ufw-probe.service")" = 644
+          test "$(stat -c '%a' "$package_root/lib/systemd/system/bhola-pulse-ufw-probe.timer")" = 644
           test -f "$package_root/usr/lib/bhola-pulse/conky/bhola_render.lua"
           test -f "$package_root/usr/lib/bhola-pulse/conky/bhola_render_nerd.lua"
           test ! -e "$package_root/usr/lib/bhola-pulse/state"
@@ -110,15 +126,15 @@ jobs:
           XDG_CONFIG_HOME="$RUNNER_TEMP/config-${series}" \
           XDG_STATE_HOME="$RUNNER_TEMP/state-${series}" \
           BHOLA_PULSE_LIBDIR="$package_root/usr/lib/bhola-pulse" \
-            "$package_root/usr/bin/bhola-pulse" --version | grep -Fx 'Bhola Pulse 0.1.1'
+            "$package_root/usr/bin/bhola-pulse" --version | grep -Fx "Bhola Pulse ${version}"
 
       - name: Upload source package files
         uses: actions/upload-artifact@v4
         with:
-          name: bhola-pulse-source-${{ matrix.series }}
+          name: bhola-pulse-pr-source-${{ matrix.series }}
           path: |
-            build/ppa/${{ matrix.series }}/*.dsc
-            build/ppa/${{ matrix.series }}/*_source.changes
-            build/ppa/${{ matrix.series }}/*_source.buildinfo
-            build/ppa/${{ matrix.series }}/*.tar.*
+            build/pr/${{ matrix.series }}/*.dsc
+            build/pr/${{ matrix.series }}/*_source.changes
+            build/pr/${{ matrix.series }}/*_source.buildinfo
+            build/pr/${{ matrix.series }}/*.tar.*
           if-no-files-found: error

@@ -1,64 +1,86 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 0022
 
 project_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-cd "$project_root"
+if ! git_root=$(git -C "$project_root" rev-parse --show-toplevel 2>/dev/null); then
+    printf 'Package build requires a valid Git worktree.\n' >&2
+    exit 1
+fi
+git_root=$(cd -- "$git_root" && pwd)
+if [[ $git_root != "$project_root" ]] || \
+   [[ $(git -C "$project_root" rev-parse --is-inside-work-tree 2>/dev/null) != true ]]; then
+    printf 'Package build script is not at the root of its Git worktree.\n' >&2
+    exit 1
+fi
 
-version=$(tr -d '[:space:]' < VERSION)
+if ! head_commit=$(git -C "$project_root" rev-parse --verify --quiet 'HEAD^{commit}'); then
+    printf 'Package build requires a valid committed HEAD.\n' >&2
+    exit 1
+fi
+if ! worktree_state=$(
+    git -C "$project_root" status --porcelain=v1 --untracked-files=all 2>&1
+); then
+    printf 'Unable to verify Git worktree state; refusing package build.\n' >&2
+    exit 1
+fi
+if [[ -n $worktree_state ]]; then
+    printf 'Package build requires a clean worktree with no staged, modified, or untracked files.\n' >&2
+    exit 1
+fi
+
+for command_name in git tar dpkg-buildpackage dpkg-parsechangelog dpkg-deb dh sha256sum install; do
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+        printf 'Missing package build command: %s\n' "$command_name" >&2
+        exit 1
+    fi
+done
+
+work_dir=$(mktemp -d)
+trap 'rm -rf -- "$work_dir"' EXIT
+if ! git -C "$project_root" -c tar.umask=0022 archive \
+    --format=tar \
+    --prefix=source/ \
+    "$head_commit" | tar --extract --no-same-owner --directory="$work_dir"; then
+    printf 'Unable to create committed source snapshot.\n' >&2
+    exit 1
+fi
+source_root="$work_dir/source"
+
+version=$(tr -d '[:space:]' < "$source_root/VERSION")
 if [[ ! $version =~ ^[0-9]+[.][0-9]+[.][0-9]+([+~.-][A-Za-z0-9.]+)?$ ]]; then
     printf 'Invalid VERSION value: %q\n' "$version" >&2
     exit 2
 fi
 
-output_dir=${1:-dist}
-mkdir -p -- "$output_dir"
-output_dir=$(cd -- "$output_dir" && pwd)
-work_dir=$(mktemp -d)
-trap 'rm -rf -- "$work_dir"' EXIT
-
-package_root="$work_dir/bhola-pulse_${version}_all"
-deb_path="$output_dir/bhola-pulse_${version}_all.deb"
-
-install -d \
-    "$package_root/DEBIAN" \
-    "$package_root/usr/bin" \
-    "$package_root/usr/lib/bhola-pulse" \
-    "$package_root/usr/lib/bhola-pulse/scripts" \
-    "$package_root/usr/share/doc/bhola-pulse"
-
-sed "s/@VERSION@/$version/g" packaging/debian/control.in > "$package_root/DEBIAN/control"
-install -m 0755 packaging/bhola-pulse "$package_root/usr/bin/bhola-pulse"
-install -m 0755 scripts/run-dev.sh "$package_root/usr/lib/bhola-pulse/scripts/run-dev.sh"
-install -m 0644 VERSION "$package_root/usr/lib/bhola-pulse/VERSION"
-install -m 0644 README.md "$package_root/usr/share/doc/bhola-pulse/README.md"
-install -m 0644 packaging/debian/copyright "$package_root/usr/share/doc/bhola-pulse/copyright"
-
-cp -a src conky config "$package_root/usr/lib/bhola-pulse/"
-find "$package_root/usr/lib/bhola-pulse" -type d -name __pycache__ -prune -exec rm -rf -- {} +
-find "$package_root/usr/lib/bhola-pulse" -type f -name '*.py[co]' -delete
-find "$package_root" -type d -exec chmod 0755 {} +
-find "$package_root/usr/lib/bhola-pulse" -type f -exec chmod 0644 {} +
-chmod 0755 "$package_root/usr/lib/bhola-pulse/scripts/run-dev.sh"
-
-mapfile -d '' unexpected_directories < <(
-    find "$package_root" -type d ! -perm 0755 -print0
-)
-if (( ${#unexpected_directories[@]} > 0 )); then
-    printf 'Refusing to build package: directories with modes other than 0755:\n' >&2
-    for directory in "${unexpected_directories[@]}"; do
-        printf '  .%s (mode %s)\n' \
-            "${directory#"$package_root"}" \
-            "$(stat -c '%a' -- "$directory")" >&2
-    done
+package_version=$(dpkg-parsechangelog -l"$source_root/debian/changelog" -S Version)
+if [[ $package_version != "$version-1" ]]; then
+    printf 'Debian changelog version %s does not match functional version %s-1.\n' \
+        "$package_version" "$version" >&2
     exit 1
 fi
 
-rm -f -- "$deb_path" "$output_dir/SHA256SUMS"
-dpkg-deb --root-owner-group --build "$package_root" "$deb_path"
+cd "$project_root"
+output_dir=${1:-dist}
+mkdir -p -- "$output_dir"
+output_dir=$(cd -- "$output_dir" && pwd)
+
+(
+    cd "$source_root"
+    dpkg-buildpackage --build=binary --unsigned-source --unsigned-changes
+)
+
+deb_name="bhola-pulse_${package_version}_all.deb"
+deb_source="$work_dir/$deb_name"
+deb_path="$output_dir/$deb_name"
+test -f "$deb_source"
+install -m 0644 "$deb_source" "$deb_path"
+checksum_path="$work_dir/SHA256SUMS"
 (
     cd -- "$output_dir"
-    sha256sum "$(basename -- "$deb_path")" > SHA256SUMS
-)
+    sha256sum "$deb_name"
+) > "$checksum_path"
+install -m 0644 "$checksum_path" "$output_dir/SHA256SUMS"
 
 dpkg-deb --info "$deb_path" >/dev/null
 dpkg-deb --contents "$deb_path" >/dev/null
