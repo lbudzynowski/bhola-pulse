@@ -12,6 +12,7 @@ testy, dokumentację i walidację artefaktów bez instalowania pakietu.
 - Base SHA: `90d704ef93167da5f0ac49fc77eec08cb086ab59`
 - Implementation HEAD przed raportem:
   `00dadaa4e3befcfd1b92012c43123ab2d9d65fbe`
+- CI dependency fix HEAD: `4c8347dcfdb4d5c69d7d9073da242a864e498b98`
 - Wersja funkcjonalna: `0.1.2`
 - Wersja binarna Debian: `0.1.2-1`
 
@@ -196,7 +197,11 @@ payloadu, prawa i zakazane mechanizmy.
 - orig tar ownership i modes: znormalizowane do `root/root`, 0644/0755.
 - debhelper lifecycle: postinst enable/start, prerm stop, postrm purge stanu
   timera — PASS.
-- GitHub CI: do uruchomienia po pushu; wynik należy odnotować w draft PR.
+- Pierwszy push-run CI: standard checks PASS, binary build FAIL z powodu
+  brakującego `build-essential:native` w kroku instalacji narzędzi workflow.
+- Poprawka CI: workflow instaluje pełne zadeklarowane narzędzia
+  `build-essential debhelper` w jobach binary i release; ponowny wynik należy
+  odnotować w draft PR.
 
 Debhelper nie był instalowany na hoście. Do lokalnej walidacji pobrano publiczne
 pakiety `.deb` do katalogu tymczasowego i rozpakowano je bez rejestracji w dpkg.
