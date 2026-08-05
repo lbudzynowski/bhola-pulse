@@ -9,18 +9,34 @@ from collections.abc import Callable
 
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
+_HEADER_PATTERN = re.compile(r"^\s*Monitors:\s+(\d+)\s*$")
+_INDEX_PATTERN = re.compile(r"^\s*(\d+):\s")
+
+
+def parse_monitor_snapshot(output: str) -> list[int] | None:
+    lines = output.splitlines()
+    if not lines:
+        return None
+    header = _HEADER_PATTERN.match(lines[0])
+    if not header:
+        return None
+    expected_count = int(header.group(1))
+    indices = []
+    for line in lines[1:]:
+        match = _INDEX_PATTERN.match(line)
+        if match:
+            indices.append(int(match.group(1)))
+    normalized = sorted(set(indices))
+    if expected_count < 1 or len(normalized) != expected_count:
+        return None
+    return normalized
 
 
 def parse_active_monitors(output: str) -> list[int]:
-    indices = []
-    for line in output.splitlines()[1:]:
-        match = re.match(r"^\s*(\d+):\s", line)
-        if match:
-            indices.append(int(match.group(1)))
-    return sorted(set(indices)) or [0]
+    return parse_monitor_snapshot(output) or [0]
 
 
-def discover_active_monitors(runner: Runner = subprocess.run) -> list[int]:
+def discover_monitor_snapshot(runner: Runner = subprocess.run) -> list[int] | None:
     try:
         result = runner(
             ["xrandr", "--listactivemonitors"],
@@ -30,10 +46,14 @@ def discover_active_monitors(runner: Runner = subprocess.run) -> list[int]:
             timeout=2.0,
         )
     except (FileNotFoundError, subprocess.SubprocessError):
-        return [0]
+        return None
     if result.returncode != 0:
-        return [0]
-    return parse_active_monitors(result.stdout)
+        return None
+    return parse_monitor_snapshot(result.stdout)
+
+
+def discover_active_monitors(runner: Runner = subprocess.run) -> list[int]:
+    return discover_monitor_snapshot(runner) or [0]
 
 
 def render_interval_for_count(count: int) -> float:
@@ -56,7 +76,7 @@ def main() -> int:
     args = parse_args()
     if args.check:
         sample = "Monitors: 2\n 0: +*internal 1920/1x1080/1+0+0  internal\n 1: +external 1920/1x1080/1+1920+0  external\n"
-        if parse_active_monitors(sample) != [0, 1]:
+        if parse_monitor_snapshot(sample) != [0, 1]:
             return 1
         print("Monitor discovery check passed.")
         return 0
