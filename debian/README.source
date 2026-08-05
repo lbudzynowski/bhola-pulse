@@ -6,6 +6,17 @@ The PPA source builder is intentionally pinned to upstream commit
 snapshot and the corrected installation example. Debian packaging files are
 copied from the current branch after the upstream archive is created.
 
+That release builder must reject the unreleased 0.1.2 runtime payload. Pull
+requests use the separate unsigned validation builder instead:
+
+    bash debian/build-pr-source noble
+    bash debian/build-pr-source resolute
+
+Its `~pr1~` source packages exist only to exercise extraction, binary rebuild,
+payload inspection, and debhelper-generated systemd lifecycle scripts. They are
+never signed or uploaded. Updating the verified release pin is a distinct
+post-review release action and must use an immutable verified commit.
+
 Build unsigned source uploads from the repository root:
 
     bash debian/build-ppa-source noble

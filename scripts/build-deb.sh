@@ -10,54 +10,51 @@ if [[ ! $version =~ ^[0-9]+[.][0-9]+[.][0-9]+([+~.-][A-Za-z0-9.]+)?$ ]]; then
     exit 2
 fi
 
+for command_name in dpkg-buildpackage dpkg-deb dh; do
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+        printf 'Missing package build command: %s\n' "$command_name" >&2
+        exit 1
+    fi
+done
+
+package_version=$(dpkg-parsechangelog -S Version)
+if [[ $package_version != "$version-1" ]]; then
+    printf 'Debian changelog version %s does not match functional version %s-1.\n' \
+        "$package_version" "$version" >&2
+    exit 1
+fi
+
 output_dir=${1:-dist}
 mkdir -p -- "$output_dir"
 output_dir=$(cd -- "$output_dir" && pwd)
 work_dir=$(mktemp -d)
 trap 'rm -rf -- "$work_dir"' EXIT
+source_root="$work_dir/bhola-pulse-$version"
+mkdir -p -- "$source_root"
 
-package_root="$work_dir/bhola-pulse_${version}_all"
-deb_path="$output_dir/bhola-pulse_${version}_all.deb"
+tar \
+    --exclude=.git \
+    --exclude=build \
+    --exclude=dist \
+    --exclude=debian/bhola-pulse \
+    --exclude='*/__pycache__' \
+    --exclude='*.py[co]' \
+    -cf - . | tar -xf - -C "$source_root"
 
-install -d \
-    "$package_root/DEBIAN" \
-    "$package_root/usr/bin" \
-    "$package_root/usr/lib/bhola-pulse" \
-    "$package_root/usr/lib/bhola-pulse/scripts" \
-    "$package_root/usr/share/doc/bhola-pulse"
-
-sed "s/@VERSION@/$version/g" packaging/debian/control.in > "$package_root/DEBIAN/control"
-install -m 0755 packaging/bhola-pulse "$package_root/usr/bin/bhola-pulse"
-install -m 0755 scripts/run-dev.sh "$package_root/usr/lib/bhola-pulse/scripts/run-dev.sh"
-install -m 0644 VERSION "$package_root/usr/lib/bhola-pulse/VERSION"
-install -m 0644 README.md "$package_root/usr/share/doc/bhola-pulse/README.md"
-install -m 0644 packaging/debian/copyright "$package_root/usr/share/doc/bhola-pulse/copyright"
-
-cp -a src conky config "$package_root/usr/lib/bhola-pulse/"
-find "$package_root/usr/lib/bhola-pulse" -type d -name __pycache__ -prune -exec rm -rf -- {} +
-find "$package_root/usr/lib/bhola-pulse" -type f -name '*.py[co]' -delete
-find "$package_root" -type d -exec chmod 0755 {} +
-find "$package_root/usr/lib/bhola-pulse" -type f -exec chmod 0644 {} +
-chmod 0755 "$package_root/usr/lib/bhola-pulse/scripts/run-dev.sh"
-
-mapfile -d '' unexpected_directories < <(
-    find "$package_root" -type d ! -perm 0755 -print0
+(
+    cd "$source_root"
+    dpkg-buildpackage --build=binary --unsigned-source --unsigned-changes
 )
-if (( ${#unexpected_directories[@]} > 0 )); then
-    printf 'Refusing to build package: directories with modes other than 0755:\n' >&2
-    for directory in "${unexpected_directories[@]}"; do
-        printf '  .%s (mode %s)\n' \
-            "${directory#"$package_root"}" \
-            "$(stat -c '%a' -- "$directory")" >&2
-    done
-    exit 1
-fi
 
-rm -f -- "$deb_path" "$output_dir/SHA256SUMS"
-dpkg-deb --root-owner-group --build "$package_root" "$deb_path"
+deb_name="bhola-pulse_${package_version}_all.deb"
+deb_source="$work_dir/$deb_name"
+deb_path="$output_dir/$deb_name"
+test -f "$deb_source"
+install -m 0644 "$deb_source" "$deb_path"
+rm -f -- "$output_dir/SHA256SUMS"
 (
     cd -- "$output_dir"
-    sha256sum "$(basename -- "$deb_path")" > SHA256SUMS
+    sha256sum "$deb_name" > SHA256SUMS
 )
 
 dpkg-deb --info "$deb_path" >/dev/null

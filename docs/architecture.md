@@ -18,7 +18,7 @@ bounded network probes (max 2 workers) --+--> one Python provider
                                         Conky + Lua/Cairo dashboard
 ```
 
-One long-lived Python process schedules every local source and owns one bounded
+One long-lived unprivileged Python process schedules every dashboard source and owns one bounded
 thread pool for network probes. One Conky per monitor owns a transparent,
 click-through, top-right X11/XWayland window. The default one-monitor render
 interval is 0.15 seconds; startup selects 0.25 seconds for two monitors and 0.35
@@ -35,7 +35,8 @@ empty XShape input region, verifies the result, and exits. Ambiguous matches
 fail closed. The launcher's signal and exit traps terminate every Conky and the
 provider, then wait for all of them. The provider handles
 SIGINT and SIGTERM with an event-driven stop and sleeps until the next scheduled
-source. There is no busy-loop, service, daemon, or autostart entry.
+source. There is no dashboard daemon or autostart entry. The package includes
+one separate systemd timer for the short, read-only UFW verification oneshot.
 
 ## Source cadence
 
@@ -85,8 +86,9 @@ interval, so movement speed remains stable across monitor counts.
 - CPU, memory, load, uptime, process, and aggregate disk counters come from
   `/proc`.
 - Temperatures, power, and battery come from `/sys`.
-- UFW distinguishes an enabled configuration from runtime filtering that can
-  actually be read without privilege.
+- UFW configuration is combined with a fresh, validated summary produced by a
+  separate root oneshot. The dashboard never invokes `nft` or receives
+  `CAP_NET_ADMIN`.
 - FortiVPN combines a core-process signal, generic tunnel presence, and the
   indicator application. Indicator presence alone never produces `ok`.
 - NumberPad combines its known service state with the actual local process.
@@ -108,12 +110,15 @@ data, and have a hard timeout.
 Status meanings are shared across the renderer:
 
 - `ok`: a sufficiently strong current signal confirms operation;
-- `degraded`: a partial signal, failed refresh with retained good data, or
-  enabled configuration whose runtime cannot be confirmed;
+- `degraded`: a partial positive signal, failed refresh with retained good
+  data, or enabled UFW configuration with freshly verified inactive runtime;
 - `error`: a positive failure signal such as complete loss or unreachable
   target;
 - `off`: a known component is configured or present but inactive;
 - `unknown`: no reliable conclusion can be made.
+
+Missing, stale, invalid, timed-out, or permission-denied UFW verification is
+`unknown`, never `degraded` solely because the runtime could not be observed.
 
 Timeout, resolver failure, unreachable target, HTTP failure, missing tool, and
 stale retained data remain distinct source states. Probe exceptions are reduced

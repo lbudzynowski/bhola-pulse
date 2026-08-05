@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    printf 'Usage: %s noble|resolute\n' "$0" >&2
+    exit 2
+fi
+
+series=$1
+case "$series" in
+    noble|resolute) ;;
+    *)
+        printf 'Unsupported Ubuntu series: %s\n' "$series" >&2
+        exit 2
+        ;;
+esac
+
+project_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+upstream_version=$(tr -d '[:space:]' < "$project_root/VERSION")
+package_version="${upstream_version}-1~pr1~${series}1"
+source_name=bhola-pulse
+source_dir_name="${source_name}-${upstream_version}"
+output_root="$project_root/build/pr/$series"
+source_dir="$output_root/$source_dir_name"
+orig_tar="$output_root/${source_name}_${upstream_version}.orig.tar"
+
+if [[ ! $upstream_version =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
+    printf 'Invalid functional version: %q\n' "$upstream_version" >&2
+    exit 2
+fi
+if ! git -C "$project_root" diff --quiet --ignore-submodules -- || \
+   ! git -C "$project_root" diff --cached --quiet --ignore-submodules --; then
+    printf 'PR source validation requires a clean, committed worktree.\n' >&2
+    exit 1
+fi
+
+rm -rf -- "$output_root"
+install -d "$source_dir"
+git -C "$project_root" archive HEAD | tar -xf - -C "$source_dir"
+rm -rf -- "$source_dir/debian"
+(
+    cd "$output_root"
+    tar -cf "$(basename -- "$orig_tar")" \
+        --exclude="${source_dir_name}/debian" \
+        "$source_dir_name"
+)
+xz -9 --force "$orig_tar"
+
+cp -a "$project_root/debian" "$source_dir/debian"
+chmod 0755 "$source_dir/debian/rules" \
+    "$source_dir/debian/build-ppa-source" \
+    "$source_dir/debian/build-pr-source"
+sed -i \
+    "1s/^${source_name} ([^)]*) [^;]*;/${source_name} (${package_version}) ${series};/" \
+    "$source_dir/debian/changelog"
+
+(
+    cd "$source_dir"
+    dpkg-buildpackage -S -sa -d -us -uc
+)
+
+changes="$output_root/${source_name}_${package_version}_source.changes"
+dsc="$output_root/${source_name}_${package_version}.dsc"
+test -f "$changes"
+test -f "$dsc"
+printf 'Built unsigned PR-validation source package in %s\n' "$output_root"

@@ -1,0 +1,44 @@
+[Unit]
+Description=Bhola Pulse verified UFW runtime probe
+Documentation=https://github.com/lbudzynowski/bhola-pulse/blob/main/docs/ufw-runtime-probe.md
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/bhola-pulse/bhola-pulse-ufw-probe
+User=root
+Group=root
+UMask=0022
+RuntimeDirectory=bhola-pulse
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+ReadWritePaths=/run/bhola-pulse
+TimeoutStartSec=10s
+
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+SystemCallArchitectures=native
+SystemCallFilter=~@clock @cpu-emulation @debug @module @mount @obsolete @privileged @raw-io @reboot @resources @swap
+RemoveIPC=yes
+IPAddressDeny=any
+TasksMax=16
+StandardOutput=null
+StandardError=null

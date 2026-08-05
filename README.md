@@ -8,9 +8,10 @@ Bhola Pulse is an animated system-telemetry dashboard for Ubuntu GNOME on
 Wayland/XWayland. It combines one long-lived, standard-library-only Python
 provider, one atomic JSON cache, and transparent Conky/Lua/Cairo renderers.
 
-The project is intentionally user-scoped: it does not change GNOME settings,
-create services, enable autostart, alter the display layout, or modify VPN,
-firewall, or package-manager configuration.
+The dashboard remains user-scoped and does not change GNOME, display, VPN,
+firewall, or package-manager configuration. A separate, tightly sandboxed
+systemd oneshot verifies UFW runtime state read-only; the dashboard itself
+never receives firewall capabilities.
 
 ## Screenshots
 
@@ -89,7 +90,7 @@ package, and install it with APT:
 
 ```bash
 sha256sum --check SHA256SUMS
-sudo apt install ./bhola-pulse_0.1.1_all.deb
+sudo apt install ./bhola-pulse_0.1.2-1_all.deb
 bhola-pulse --check
 bhola-pulse
 ```
@@ -101,12 +102,28 @@ The package depends on:
 
 - Python 3.11 or newer;
 - `conky-all` with Lua and Cairo bindings;
+- `nftables` for the mandatory read-only UFW runtime probe;
 - `xrandr` from `x11-xserver-utils`;
 - the X11 client library used by the verified click-through helper.
 
-`ping` and `nft` are recommended. Missing optional local tools or unreadable
-signals produce an honest `unknown`/degraded state instead of terminating the
-dashboard.
+`ping` is recommended. Missing, stale, or invalid optional signals produce an
+honest `unknown` state instead of terminating the dashboard.
+
+### Verified UFW status
+
+The package installs `bhola-pulse-ufw-probe.service` and a 45-second timer.
+Only that short root oneshot retains `CAP_NET_ADMIN`; it executes the fixed
+read-only command `/usr/sbin/nft --json list ruleset` and atomically writes a
+small root-owned summary to `/run/bhola-pulse/ufw-status.json`. It never stores
+the ruleset, addresses, ports, interfaces, comments, counters, or raw command
+output. The unprivileged collector validates the file before using it.
+
+UFW is rendered as `ok` only for fresh verified active runtime, `degraded` only
+for fresh verified inactive runtime while configuration is enabled, `off` for
+disabled configuration, and `unknown` when verification is missing, stale,
+invalid, timed out, or otherwise inconclusive. See
+[the UFW runtime probe design](docs/ufw-runtime-probe.md) for security,
+validation, deployment, and rollback details.
 
 ## Network and privacy behavior
 
@@ -177,6 +194,7 @@ Missing sensors use neutral gray and `N/A`.
 
 - `packaging/bhola-pulse` — installed command and persistent style management;
 - `packaging/debian/` — Debian package metadata;
+- `packaging/systemd/` — capability-bounded UFW probe service and timer;
 - `scripts/build-deb.sh` — package and SHA-256 builder;
 - `scripts/run-dev.sh` — foreground multi-monitor lifecycle;
 - `conky/bhola-pulse.conf` — transparent Conky window and render cadence;
@@ -189,6 +207,7 @@ Missing sensors use neutral gray and `N/A`.
   bounded probes;
 - `src/bhola_probes.py` — two-worker non-overlapping network task manager;
 - `src/bhola_services.py` — confidence-aware read-only local service status;
+- `src/bhola_ufw_probe.py` — privileged parser and minimal atomic runtime state;
 - `src/bhola_clickthrough.py` — one-shot verified XShape input-region helper;
 - `src/bhola_monitors.py` — sanitized startup-only active-monitor discovery;
 - `src/bhola_style.py` — validated CLI/environment style resolution;

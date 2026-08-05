@@ -31,6 +31,11 @@ jobs:
       - name: Run standard checks
         run: bash scripts/check.sh
 
+      - name: Install Debian binary packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends debhelper
+
       - name: Build Debian package
         run: bash scripts/build-deb.sh
 
@@ -39,12 +44,13 @@ jobs:
         run: |
           set -euo pipefail
           version=$(tr -d '[:space:]' < VERSION)
-          deb="dist/bhola-pulse_${version}_all.deb"
+          package_version=$(dpkg-parsechangelog -S Version)
+          deb="dist/bhola-pulse_${package_version}_all.deb"
           test -f "$deb"
           test -f dist/SHA256SUMS
           (cd dist && sha256sum --check SHA256SUMS)
           test "$(dpkg-deb --field "$deb" Package)" = bhola-pulse
-          test "$(dpkg-deb --field "$deb" Version)" = "$version"
+          test "$(dpkg-deb --field "$deb" Version)" = "$package_version"
           test "$(dpkg-deb --field "$deb" Architecture)" = all
           rm -rf package-root
           dpkg-deb --extract "$deb" package-root
@@ -61,10 +67,19 @@ jobs:
             exit 1
           fi
           test -x package-root/usr/bin/bhola-pulse
+          test -x package-root/usr/lib/bhola-pulse/bhola-pulse-ufw-probe
           test -x package-root/usr/lib/bhola-pulse/scripts/run-dev.sh
+          test -f package-root/lib/systemd/system/bhola-pulse-ufw-probe.service
+          test -f package-root/lib/systemd/system/bhola-pulse-ufw-probe.timer
           test -f package-root/usr/lib/bhola-pulse/conky/bhola_render.lua
           test -f package-root/usr/lib/bhola-pulse/conky/bhola_render_nerd.lua
           test ! -e package-root/usr/lib/bhola-pulse/state
+          rm -rf package-control
+          dpkg-deb --control "$deb" package-control
+          grep -F 'deb-systemd-helper enable' package-control/postinst
+          grep -F 'bhola-pulse-ufw-probe.timer' package-control/postinst
+          grep -F 'bhola-pulse-ufw-probe.timer' package-control/prerm
+          grep -F 'bhola-pulse-ufw-probe.timer' package-control/postrm
           HOME="$RUNNER_TEMP/bhola-home" \
           XDG_CONFIG_HOME="$RUNNER_TEMP/bhola-config" \
           XDG_STATE_HOME="$RUNNER_TEMP/bhola-state" \
@@ -94,6 +109,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Install Debian release packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends debhelper
 
       - name: Build release assets
         run: bash scripts/build-deb.sh
