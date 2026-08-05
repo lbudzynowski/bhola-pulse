@@ -8,6 +8,7 @@ python3 scripts/privacy-check.py
 python3 -m compileall -q src tests
 python3 -m unittest discover -s tests -v
 python3 -m src.bhola_provider --check
+python3 -m src.bhola_runtime --check
 bash -n \
     scripts/run-dev.sh \
     scripts/check.sh \
