@@ -8,6 +8,7 @@ from src.bhola_runtime import (
     TopologyDebouncer,
     launch_generation,
     monitor_launches,
+    stop_processes,
 )
 
 
@@ -36,6 +37,11 @@ class FakeProcess:
         if self.return_code is None:
             raise subprocess.TimeoutExpired("fake", timeout)
         return self.return_code
+
+
+class StubbornProcess(FakeProcess):
+    def terminate(self):
+        self.terminated = True
 
 
 class FakeStopEvent:
@@ -104,6 +110,43 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(commands[0][1]["env"]["BHOLA_STATE_FILE"], "state/test.json")
         self.assertEqual(len(clicks), 2)
         self.assertIn("src.bhola_clickthrough", clicks[0][0])
+
+    def test_clickthrough_failure_stops_every_started_instance(self):
+        processes = []
+        click_count = 0
+
+        def process_factory(_command, **_kwargs):
+            process = FakeProcess()
+            processes.append(process)
+            return process
+
+        def clickthrough_runner(command, **_kwargs):
+            nonlocal click_count
+            click_count += 1
+            return subprocess.CompletedProcess(command, 0 if click_count == 1 else 1)
+
+        with self.assertRaisesRegex(RuntimeError, "instance 1 click-through"):
+            launch_generation(
+                [0, 1],
+                state_file="state/test.json",
+                style="modern",
+                environment={},
+                process_factory=process_factory,
+                clickthrough_runner=clickthrough_runner,
+            )
+        self.assertEqual(len(processes), 2)
+        self.assertTrue(all(process.terminated for process in processes))
+        self.assertTrue(all(process.poll() == 0 for process in processes))
+
+    def test_stop_processes_escalates_only_for_stubborn_child(self):
+        cooperative = FakeProcess()
+        stubborn = StubbornProcess()
+        stop_processes([cooperative, stubborn], timeout=0.0)
+        self.assertTrue(cooperative.terminated)
+        self.assertFalse(cooperative.killed)
+        self.assertTrue(stubborn.terminated)
+        self.assertTrue(stubborn.killed)
+        self.assertEqual(stubborn.poll(), -9)
 
     def test_supervisor_restarts_only_after_stable_hotplug(self):
         discoveries = iter(([0], [0, 1], [0, 1], [0, 1]))
