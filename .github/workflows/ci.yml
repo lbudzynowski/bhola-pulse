@@ -34,7 +34,7 @@ jobs:
       - name: Install Debian binary packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends debhelper
+          sudo apt-get install --yes --no-install-recommends build-essential debhelper
 
       - name: Build Debian package
         run: bash scripts/build-deb.sh
@@ -116,7 +116,7 @@ jobs:
       - name: Install Debian release packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends debhelper
+          sudo apt-get install --yes --no-install-recommends build-essential debhelper
 
       - name: Build release assets
         run: bash scripts/build-deb.sh
