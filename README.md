@@ -55,16 +55,14 @@ ASCII bars, fixed NOW/FAST/SLOW/PEAK banks, large character-only CPU/RAM/NVMe
 meters, spinner, status pulses, and a terminal ticker.
 
 `cinematic` wraps the unchanged `nerd` renderer with an optional presentation
-layer: a short boot sequence, subtle CRT scanlines, HUD corner marks, and a
-continuously scrolling 12-line LIVE TRACE below the normal dashboard. The trace
-is hidden during the boot sequence, prioritizes real state transitions, and
-otherwise emits one rotating cache-derived `PULSE`, `SYS`, `NET`, or `SVC`
-snapshot per second. Cinematic also adds infrequent deterministic glitch bursts
-that re-render horizontally sliced portions of the real dashboard with chromatic
-tearing and noise. Every third burst may briefly reveal an original in-repository
-ASCII skull that is torn apart by the same slice effect. The transparent
-wallpaper/background behavior is unchanged. The renderer does not invent Git,
-APT, or PPA events when no corresponding telemetry source exists.
+layer: a short boot sequence, subtle CRT scanlines, bounded deterministic glitch
+accents, HUD corner marks, and a 12-line continuously scrolling LIVE TRACE. The
+trace is derived only from state transitions and rotating snapshots already
+present in the sanitized dashboard cache and currently uses the real `PULSE`,
+`SYS`, `NET`, and `SVC` sources. It does not invent Git, APT, or PPA events when
+no corresponding telemetry source exists. The glitch layer re-renders bounded
+horizontal slices of the real scene and may briefly reveal an original ASCII
+skull drawn from repository source text; no external image asset is used.
 
 Select a style for one run:
 
