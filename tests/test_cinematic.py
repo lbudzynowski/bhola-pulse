@@ -40,7 +40,9 @@ class CinematicRendererTests(unittest.TestCase):
         cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
 
         self.assertIn("local glitch_cycle_seconds = 11.7", cinematic)
-        self.assertIn("local glitch_burst_seconds = 0.75", cinematic)
+        self.assertIn("local glitch_burst_seconds = 1.6", cinematic)
+        self.assertIn("if phase < 0.30 or phase > 1.35 then", cinematic)
+        self.assertIn("local skull_phase = (phase - 0.30) / 1.05", cinematic)
         self.assertIn("cairo_rectangle(cr, 0, y, width, h)", cinematic)
         self.assertIn("cairo_clip(cr)", cinematic)
         self.assertIn("cairo_translate(cr, dx, 0)", cinematic)
