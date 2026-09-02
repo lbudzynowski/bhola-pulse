@@ -41,6 +41,10 @@ active at startup:
 - **Network & Services** — aggregate RX/TX, route presence, bounded gateway,
   Internet, DNS, HTTPS, and masked public-address probes.
 
+The optional `cinematic` style keeps those four cells unchanged and extends only
+its transparent presentation canvas to 760×720 so the LIVE TRACE can sit below
+the normal dashboard instead of covering its operational panels.
+
 All windows share one provider and one atomically replaced cache. The cache does
 not contain interface names, hostnames, process arguments, private URLs,
 credentials, or a complete public address.
@@ -56,10 +60,12 @@ meters, spinner, status pulses, and a terminal ticker.
 
 `cinematic` wraps the unchanged `nerd` renderer with an optional presentation
 layer: a short boot sequence, subtle CRT scanlines, bounded deterministic glitch
-accents, HUD corner marks, and a two-line LIVE TRACE. The trace is derived only
-from state transitions already present in the sanitized dashboard cache and
-currently uses the real `PULSE`, `SYS`, `NET`, and `SVC` sources. It does not
-invent Git, APT, or PPA events when no corresponding telemetry source exists.
+accents, HUD corner marks, and a continuously scrolling 12-line LIVE TRACE.
+The trace gives real state transitions priority and, while the system is stable,
+adds one rotating cache-derived `PULSE`, `SYS`, `NET`, or `SVC` snapshot per
+second. Older lines fade as they scroll upward and the newest line is marked as
+active. It does not invent Git, APT, or PPA events when no corresponding
+telemetry source exists.
 
 Select a style for one run:
 
