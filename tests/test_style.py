@@ -18,9 +18,22 @@ class StyleSelectionTests(unittest.TestCase):
     def test_environment_selects_nerd(self) -> None:
         self.assertEqual(resolve_style(environ={"BHOLA_STYLE": "nerd"}), "nerd")
 
+    def test_cli_selects_cinematic(self) -> None:
+        self.assertEqual(resolve_style("cinematic", {}), "cinematic")
+
+    def test_environment_selects_cinematic(self) -> None:
+        self.assertEqual(
+            resolve_style(environ={"BHOLA_STYLE": "cinematic"}),
+            "cinematic",
+        )
+
     def test_cli_takes_precedence_over_environment(self) -> None:
         self.assertEqual(resolve_style("modern", {"BHOLA_STYLE": "nerd"}), "modern")
         self.assertEqual(resolve_style("nerd", {"BHOLA_STYLE": "invalid"}), "nerd")
+        self.assertEqual(
+            resolve_style("cinematic", {"BHOLA_STYLE": "invalid"}),
+            "cinematic",
+        )
 
         environment = dict(os.environ)
         environment["BHOLA_STYLE"] = "nerd"
@@ -35,7 +48,7 @@ class StyleSelectionTests(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), "modern")
 
     def test_invalid_style_is_rejected_with_nonzero_exit(self) -> None:
-        with self.assertRaisesRegex(ValueError, "expected one of: modern, nerd"):
+        with self.assertRaisesRegex(ValueError, "expected one of: modern, nerd, cinematic"):
             resolve_style("future", {})
 
         environment = dict(os.environ)
