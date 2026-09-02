@@ -14,7 +14,7 @@ local trace_sample_seconds = 1
 local boot_duration = 4.6
 local glitch_lead_seconds = 4.0
 local glitch_cycle_seconds = 11.7
-local glitch_burst_seconds = 0.75
+local glitch_burst_seconds = 1.6
 
 local colors = {
     black = {0.01, 0.02, 0.03},
@@ -418,11 +418,11 @@ local function draw_ascii_skull(cr, phase, cycle_index)
     if cycle_index % 3 ~= 0 then
         return
     end
-    if phase < 0.16 or phase > 0.62 then
+    if phase < 0.30 or phase > 1.35 then
         return
     end
 
-    local skull_phase = (phase - 0.16) / 0.46
+    local skull_phase = (phase - 0.30) / 1.05
     local envelope = math.sin(math.max(0, math.min(1, skull_phase)) * math.pi)
     local base_x = 208
     local base_y = 128
