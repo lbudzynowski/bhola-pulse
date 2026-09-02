@@ -355,31 +355,22 @@ local glitch_slices = {
     {641, 15, 18},
 }
 
+-- Selected reference #1 from the user's terminal-skull screenshot. Keep this
+-- deliberately asymmetric side-profile art; do not "improve" it into a new skull.
 local skull_lines = {
-    "             .:::::-------:::::.",
-    "          .:--==++********++==--:.",
-    "        .-=+**##%%%%%%%%%%##**+=-.",
-    "      .-+*#%%%%##********##%%%%#*+-.",
-    "     .=*#%%%#+:.          .:+#%%%#*=.",
-    "    :+#%%%#=.     .::::.     .=#%%%#+:",
-    "   :*%%%%*.    .-+######+-.    .*%%%%*:",
-    "  .*%%%%+     =##+-.  .-+##=     +%%%%*.",
-    "  +%%%%#     *##:        :##*     #%%%%+",
-    "  #%%%%+     ##*  .    .  *##     +%%%%#",
-    "  %%%%%=     ##*  @    @  *##     =%%%%%",
-    "  #%%%%+     *##.        .##*     +%%%%#",
-    "  +%%%%#      +##+=----=+##+      #%%%%+",
-    "  .*%%%%+.      =+######+=      .+%%%%*.",
-    "   :*%%%%#-.       +##+       .-#%%%%*:",
-    "    :+#%%%%#+:.    +##+    .:+#%%%%#+:",
-    "     .=*#%%%%%%#*++####++*#%%%%%%#*=.",
-    "       :-+#%%%%%##+####+##%%%%%#+-:",
-    "          :=*#%%#==####==#%%#*=:",
-    "             +###==####==###+",
-    "              +##==####==##+",
-    "               +##########+",
-    "                +##++++##+",
-    "                 ++    ++",
+    [[       ,gS$$$Sk.]],
+    [[     ,d$$$$$$$$$$k.]],
+    [[   ,?^?$?°`   `?$$$$$L.]],
+    [[  ,?    $SL._  ,d$iI$$$$L]],
+    [[ j$Su:$$$$$$$$$?:iI$$$$Sb]],
+    [[:?°?^4$$$$$"°?$$L:iI$$$I:]],
+    [[:'    ' / `?$' .   `?Li$$$$I:]],
+    [[ `      ,            `?ki$$I?]],
+    [[   :.       $k _       `?Si?]],
+    [[  .,_._     i$$%?-:i?']],
+    [[  ?%uS%uo d$$?' .?º`]],
+    [[  S$$$$$$$$$$$i]],
+    [[ .?$$$$?]],
 }
 
 local function glitch_state(animation_time)
@@ -424,9 +415,9 @@ local function draw_ascii_skull(cr, phase, cycle_index)
 
     local skull_phase = (phase - 0.30) / 1.05
     local envelope = math.sin(math.max(0, math.min(1, skull_phase)) * math.pi)
-    local base_x = 208
-    local base_y = 128
-    local line_step = 12
+    local base_x = 220
+    local base_y = 135
+    local line_step = 20
     local frame_seed = math.floor(phase * 100)
 
     for index, line in ipairs(skull_lines) do
@@ -435,9 +426,9 @@ local function draw_ascii_skull(cr, phase, cycle_index)
         local y = base_y + (index - 1) * line_step
         local dropout = ((index * 13 + frame_seed) % 29) == 0
         if not dropout then
-            draw_text(cr, base_x + dx - 3, y, line, 9, colors.cyan, true, 0.18 + 0.42 * envelope)
-            draw_text(cr, base_x + dx + 3, y, line, 9, colors.magenta, true, 0.18 + 0.42 * envelope)
-            draw_text(cr, base_x + dx, y, line, 9, colors.white, true, 0.40 + 0.55 * envelope)
+            draw_text(cr, base_x + dx - 3, y, line, 14, colors.cyan, true, 0.18 + 0.42 * envelope)
+            draw_text(cr, base_x + dx + 3, y, line, 14, colors.magenta, true, 0.18 + 0.42 * envelope)
+            draw_text(cr, base_x + dx, y, line, 14, colors.white, true, 0.40 + 0.55 * envelope)
         end
     end
 end
