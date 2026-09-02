@@ -11,6 +11,10 @@ local trace_height = 188
 local trace_limit = 12
 local trace_line_step = 12
 local trace_sample_seconds = 1
+local boot_duration = 4.6
+local glitch_lead_seconds = 4.0
+local glitch_cycle_seconds = 11.7
+local glitch_burst_seconds = 0.75
 
 local colors = {
     black = {0.01, 0.02, 0.03},
@@ -269,22 +273,6 @@ local function draw_scanlines(cr, from_y, to_y)
     cairo_fill(cr)
 end
 
-local function draw_glitch(cr, animation_time)
-    local phase = animation_time % 13.0
-    if phase >= 0.16 then
-        return
-    end
-
-    local y = 70 + math.floor((animation_time * 37) % 390)
-    set_source(cr, colors.magenta, 0.13)
-    cairo_rectangle(cr, 0, y, width, 4)
-    cairo_fill(cr)
-    set_source(cr, colors.cyan, 0.11)
-    cairo_rectangle(cr, 0, y + 7, width, 2)
-    cairo_fill(cr)
-    draw_text(cr, 608, y - 3, "SYNC//OFFSET", 7, colors.magenta, true, 0.72)
-end
-
 local boot_lines = {
     "BHOLA BIOS ................. LINK",
     "MEMORY MAP ................. OK",
@@ -294,12 +282,11 @@ local boot_lines = {
 }
 
 local function draw_boot_sequence(cr, animation_time)
-    local duration = 4.6
-    if animation_time >= duration then
+    if animation_time >= boot_duration then
         return
     end
 
-    set_source(cr, colors.black, 0.90)
+    set_source(cr, colors.black, 0.94)
     cairo_rectangle(cr, 0, 0, width, height)
     cairo_fill(cr)
 
@@ -350,6 +337,140 @@ local function draw_live_trace(cr, animation_time)
     end
 end
 
+local function draw_scene(cr, metrics, animation_time)
+    nerd.draw_dashboard(cr, metrics, animation_time)
+    draw_hud(cr)
+    draw_live_trace(cr, animation_time)
+    draw_scanlines(cr, 0, height)
+end
+
+local glitch_slices = {
+    {54, 17, -24},
+    {111, 11, 16},
+    {186, 25, -19},
+    {278, 13, 28},
+    {367, 19, -15},
+    {462, 12, 22},
+    {548, 23, -30},
+    {641, 15, 18},
+}
+
+local skull_lines = {
+    "             .:::::-------:::::.",
+    "          .:--==++********++==--:.",
+    "        .-=+**##%%%%%%%%%%##**+=-.",
+    "      .-+*#%%%%##********##%%%%#*+-.",
+    "     .=*#%%%#+:.          .:+#%%%#*=.",
+    "    :+#%%%#=.     .::::.     .=#%%%#+:",
+    "   :*%%%%*.    .-+######+-.    .*%%%%*:",
+    "  .*%%%%+     =##+-.  .-+##=     +%%%%*.",
+    "  +%%%%#     *##:        :##*     #%%%%+",
+    "  #%%%%+     ##*  .    .  *##     +%%%%#",
+    "  %%%%%=     ##*  @    @  *##     =%%%%%",
+    "  #%%%%+     *##.        .##*     +%%%%#",
+    "  +%%%%#      +##+=----=+##+      #%%%%+",
+    "  .*%%%%+.      =+######+=      .+%%%%*.",
+    "   :*%%%%#-.       +##+       .-#%%%%*:",
+    "    :+#%%%%#+:.    +##+    .:+#%%%%#+:",
+    "     .=*#%%%%%%#*++####++*#%%%%%%#*=.",
+    "       :-+#%%%%%##+####+##%%%%%#+-:",
+    "          :=*#%%#==####==#%%#*=:",
+    "             +###==####==###+",
+    "              +##==####==##+",
+    "               +##########+",
+    "                +##++++##+",
+    "                 ++    ++",
+}
+
+local function glitch_state(animation_time)
+    local elapsed = animation_time - boot_duration - glitch_lead_seconds
+    if elapsed < 0 then
+        return false, 0, 0
+    end
+
+    local cycle_index = math.floor(elapsed / glitch_cycle_seconds)
+    local phase = elapsed - cycle_index * glitch_cycle_seconds
+    if phase >= glitch_burst_seconds then
+        return false, phase, cycle_index
+    end
+    return true, phase, cycle_index
+end
+
+local function glitch_strength(phase)
+    local normalized = math.max(0, math.min(1, phase / glitch_burst_seconds))
+    return math.sin(normalized * math.pi)
+end
+
+local function draw_glitch_noise(cr, phase, strength)
+    local seed = math.floor(phase * 1000)
+    for index = 1, 9 do
+        local y = 44 + ((seed * 17 + index * 83) % 635)
+        local x = ((seed * 11 + index * 109) % 620)
+        local w = 28 + ((seed + index * 37) % 118)
+        local color = index % 2 == 0 and colors.cyan or colors.magenta
+        set_source(cr, color, 0.10 + 0.24 * strength)
+        cairo_rectangle(cr, x, y, w, 1 + (index % 3))
+        cairo_fill(cr)
+    end
+end
+
+local function draw_ascii_skull(cr, phase, cycle_index)
+    if cycle_index % 3 ~= 0 then
+        return
+    end
+    if phase < 0.16 or phase > 0.62 then
+        return
+    end
+
+    local skull_phase = (phase - 0.16) / 0.46
+    local envelope = math.sin(math.max(0, math.min(1, skull_phase)) * math.pi)
+    local base_x = 208
+    local base_y = 128
+    local line_step = 12
+    local frame_seed = math.floor(phase * 100)
+
+    for index, line in ipairs(skull_lines) do
+        local tear = ((index * 7 + frame_seed * 3) % 9) - 4
+        local dx = tear * (1.2 + 2.8 * envelope)
+        local y = base_y + (index - 1) * line_step
+        local dropout = ((index * 13 + frame_seed) % 29) == 0
+        if not dropout then
+            draw_text(cr, base_x + dx - 3, y, line, 9, colors.cyan, true, 0.18 + 0.42 * envelope)
+            draw_text(cr, base_x + dx + 3, y, line, 9, colors.magenta, true, 0.18 + 0.42 * envelope)
+            draw_text(cr, base_x + dx, y, line, 9, colors.white, true, 0.40 + 0.55 * envelope)
+        end
+    end
+end
+
+local function draw_glitch_burst(cr, metrics, animation_time, phase, cycle_index)
+    local strength = glitch_strength(phase)
+
+    for index, slice in ipairs(glitch_slices) do
+        local y = slice[1]
+        local h = slice[2]
+        local base_dx = slice[3]
+        local wobble = (((cycle_index + index * 5) % 5) - 2) * 2
+        local dx = (base_dx + wobble) * (0.35 + 0.65 * strength)
+
+        cairo_save(cr)
+        cairo_rectangle(cr, 0, y, width, h)
+        cairo_clip(cr)
+        set_source(cr, colors.black, 0.48 + 0.30 * strength)
+        cairo_paint(cr)
+        cairo_translate(cr, dx, 0)
+        draw_scene(cr, metrics, animation_time)
+        cairo_restore(cr)
+
+        local edge_color = index % 2 == 0 and colors.cyan or colors.magenta
+        set_source(cr, edge_color, 0.16 + 0.30 * strength)
+        cairo_rectangle(cr, math.max(0, dx > 0 and 0 or width - 8), y, 8, math.max(1, h - 1))
+        cairo_fill(cr)
+    end
+
+    draw_glitch_noise(cr, phase, strength)
+    draw_ascii_skull(cr, phase, cycle_index)
+end
+
 function render.update(metrics)
     nerd.update(metrics)
 
@@ -367,16 +488,24 @@ function render.update(metrics)
 end
 
 function render.draw_dashboard(cr, metrics, animation_time)
-    nerd.draw_dashboard(cr, metrics, animation_time)
-    draw_hud(cr)
-    draw_glitch(cr, animation_time)
-    draw_boot_sequence(cr, animation_time)
-    draw_scanlines(cr, 0, trace_top - 1)
+    if animation_time < boot_duration then
+        nerd.draw_dashboard(cr, metrics, animation_time)
+        draw_hud(cr)
+        draw_boot_sequence(cr, animation_time)
+        draw_scanlines(cr, 0, height)
+        return
+    end
+
+    draw_scene(cr, metrics, animation_time)
+
+    local active, phase, cycle_index = glitch_state(animation_time)
+    if active then
+        draw_glitch_burst(cr, metrics, animation_time, phase, cycle_index)
+    end
 end
 
 function render.draw_ticker(cr, metrics, alpha, animation_time)
-    draw_live_trace(cr, animation_time)
-    draw_scanlines(cr, trace_top, height)
+    -- Cinematic owns the full 760x720 scene so LIVE TRACE can participate in glitch slicing.
 end
 
 return render
