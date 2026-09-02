@@ -77,6 +77,15 @@ class InstalledLauncherTests(unittest.TestCase):
         default = self.run_launcher("config", "show")
         self.assertEqual(default.stdout, "style=modern source=default\n")
 
+    def test_cinematic_style_can_be_saved_and_reaches_runtime(self) -> None:
+        saved = self.run_launcher("config", "set", "cinematic")
+        self.assertEqual(saved.returncode, 0, saved.stderr)
+        self.assertIn("Saved Bhola Pulse style: cinematic", saved.stdout)
+
+        result = self.run_launcher("--check")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("style=cinematic\n", result.stdout)
+
     def test_saved_style_and_xdg_state_reach_runtime(self) -> None:
         self.assertEqual(self.run_launcher("config", "nerd").returncode, 0)
         result = self.run_launcher("--check")
@@ -99,7 +108,7 @@ class InstalledLauncherTests(unittest.TestCase):
     def test_invalid_style_is_rejected_without_changing_config(self) -> None:
         result = self.run_launcher("config", "set", "retro")
         self.assertEqual(result.returncode, 2)
-        self.assertIn("expected modern or nerd", result.stderr)
+        self.assertIn("expected modern, nerd, or cinematic", result.stderr)
         self.assertFalse((self.config_home / "bhola-pulse" / "style").exists())
 
     def test_version_comes_from_installed_payload(self) -> None:
