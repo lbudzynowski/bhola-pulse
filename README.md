@@ -54,18 +54,28 @@ status points, temperature interpolation, and a moving ticker.
 ASCII bars, fixed NOW/FAST/SLOW/PEAK banks, large character-only CPU/RAM/NVMe
 meters, spinner, status pulses, and a terminal ticker.
 
+`cinematic` wraps the unchanged `nerd` renderer with an optional presentation
+layer: a short boot sequence, subtle CRT scanlines, bounded deterministic glitch
+accents, HUD corner marks, and a two-line LIVE TRACE. The trace is derived only
+from state transitions already present in the sanitized dashboard cache and
+currently uses the real `PULSE`, `SYS`, `NET`, and `SVC` sources. It does not
+invent Git, APT, or PPA events when no corresponding telemetry source exists.
+
 Select a style for one run:
 
 ```bash
 bhola-pulse --style modern
 bhola-pulse --style nerd
+bhola-pulse --style cinematic
 BHOLA_STYLE=nerd bhola-pulse
+BHOLA_STYLE=cinematic bhola-pulse
 ```
 
 Save a user preference:
 
 ```bash
 bhola-pulse config set nerd
+bhola-pulse config set cinematic
 bhola-pulse config show
 bhola-pulse config set modern
 bhola-pulse config reset
@@ -152,6 +162,7 @@ Run from the repository:
 ```bash
 ./scripts/run-dev.sh
 ./scripts/run-dev.sh --style nerd
+./scripts/run-dev.sh --style cinematic
 ```
 
 Run all environment-independent checks:
@@ -201,6 +212,7 @@ Missing sensors use neutral gray and `N/A`.
 - `conky/bhola_pulse.lua` — style selection and shared scaled draw hook;
 - `conky/bhola_render.lua` — `modern` renderer;
 - `conky/bhola_render_nerd.lua` — `nerd` renderer;
+- `conky/bhola_render_cinematic.lua` — optional cinematic wrapper over `nerd`;
 - `src/bhola_provider.py` — provider lifecycle and task composition;
 - `src/bhola_collectors.py` — local Linux telemetry sources;
 - `src/bhola_network.py` — aggregate counters, route discovery, parsers, and
