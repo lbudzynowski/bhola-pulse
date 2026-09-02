@@ -14,14 +14,14 @@ while (($# > 0)); do
             ;;
         --style)
             if (($# < 2)); then
-                printf 'Missing value after --style; expected modern or nerd.\n' >&2
+                printf 'Missing value after --style; expected modern, nerd, or cinematic.\n' >&2
                 exit 2
             fi
             style_options=(--style "$2")
             shift 2
             ;;
         *)
-            printf 'Usage: %s [--check] [--style modern|nerd]\n' "$0" >&2
+            printf 'Usage: %s [--check] [--style modern|nerd|cinematic]\n' "$0" >&2
             exit 2
             ;;
     esac
