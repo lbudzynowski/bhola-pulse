@@ -5,11 +5,12 @@ local nerd = require("conky.bhola_render_nerd")
 local render = {}
 
 local width = 760
-local height = 570
+local height = 720
 local trace_top = 526
-local trace_height = 40
-local trace_limit = 8
-local heartbeat_seconds = 30
+local trace_height = 188
+local trace_limit = 12
+local trace_line_step = 12
+local trace_sample_seconds = 1
 
 local colors = {
     black = {0.01, 0.02, 0.03},
@@ -48,7 +49,8 @@ local events = {}
 local previous = {}
 local initialized = false
 local last_epoch = -1
-local last_heartbeat_epoch = 0
+local last_trace_sample_epoch = 0
+local trace_sample_slot = 0
 local previous_cpu_thermal_band = nil
 
 local function set_source(cr, color, alpha)
@@ -73,6 +75,32 @@ local function status(value)
         return "UNKNOWN"
     end
     return string.upper(tostring(value))
+end
+
+local function number_or_na(value, format)
+    if type(value) ~= "number" then
+        return "N/A"
+    end
+    return string.format(format, value)
+end
+
+local function format_rate(value)
+    if type(value) ~= "number" then
+        return "N/A"
+    end
+
+    local units = {"B/s", "KB/s", "MB/s", "GB/s"}
+    local scaled = math.max(0, value)
+    local unit_index = 1
+    while scaled >= 1024 and unit_index < #units do
+        scaled = scaled / 1024
+        unit_index = unit_index + 1
+    end
+
+    if unit_index == 1 then
+        return string.format("%.0f %s", scaled, units[unit_index])
+    end
+    return string.format("%.1f %s", scaled, units[unit_index])
 end
 
 local function event_time(epoch)
@@ -135,7 +163,48 @@ local function bootstrap(metrics, epoch)
     )
     snapshot(metrics)
     initialized = true
-    last_heartbeat_epoch = epoch
+    last_trace_sample_epoch = epoch
+end
+
+local function emit_trace_sample(metrics, epoch)
+    trace_sample_slot = (trace_sample_slot % 4) + 1
+
+    if trace_sample_slot == 1 then
+        push_event(
+            "PULSE",
+            "heartbeat cpu=" .. number_or_na(metrics.cpu_percent, "%.1f%%")
+                .. " ram=" .. number_or_na(metrics.memory_percent, "%.1f%%")
+                .. " load=" .. number_or_na(metrics.load_1, "%.2f"),
+            epoch
+        )
+    elseif trace_sample_slot == 2 then
+        push_event(
+            "NET",
+            "rx=" .. format_rate(metrics.network_download_bytes_per_second)
+                .. " tx=" .. format_rate(metrics.network_upload_bytes_per_second)
+                .. " ping=" .. number_or_na(metrics.network_latency_ms, "%.0fms")
+                .. " internet=" .. status(metrics.network_internet_status),
+            epoch
+        )
+    elseif trace_sample_slot == 3 then
+        push_event(
+            "SYS",
+            "disk-r=" .. format_rate(metrics.disk_read_bytes_per_second)
+                .. " disk-w=" .. format_rate(metrics.disk_write_bytes_per_second)
+                .. " proc=" .. number_or_na(metrics.process_count, "%.0f")
+                .. " temp=" .. number_or_na(metrics.temperature_cpu_c, "%.0fC"),
+            epoch
+        )
+    else
+        push_event(
+            "SVC",
+            "ufw=" .. status(metrics.service_ufw)
+                .. " vpn=" .. status(metrics.service_fortivpn)
+                .. " ntfy=" .. status(metrics.service_ntfy)
+                .. " local-mon=" .. status(metrics.service_monitors),
+            epoch
+        )
+    end
 end
 
 local function collect_changes(metrics, epoch)
@@ -162,9 +231,9 @@ local function collect_changes(metrics, epoch)
         previous_cpu_thermal_band = thermal
     end
 
-    if epoch > 0 and epoch - last_heartbeat_epoch >= heartbeat_seconds then
-        push_event("PULSE", "heartbeat / telemetry stream alive", epoch)
-        last_heartbeat_epoch = epoch
+    if epoch > 0 and epoch - last_trace_sample_epoch >= trace_sample_seconds then
+        emit_trace_sample(metrics, epoch)
+        last_trace_sample_epoch = epoch
     end
 end
 
@@ -247,7 +316,7 @@ local function draw_boot_sequence(cr, animation_time)
     draw_text(cr, 72, 382, "> _", 12, colors.cyan, true, cursor_alpha)
 end
 
-local function draw_live_trace(cr)
+local function draw_live_trace(cr, animation_time)
     set_source(cr, colors.black, 0.80)
     cairo_rectangle(cr, 8, trace_top, width - 16, trace_height)
     cairo_fill(cr)
@@ -257,18 +326,26 @@ local function draw_live_trace(cr)
     cairo_rectangle(cr, 8.5, trace_top + 0.5, width - 17, trace_height - 1)
     cairo_stroke(cr)
 
-    draw_text(cr, 18, trace_top + 12, "LIVE TRACE // REAL CACHE EVENTS", 7, colors.cyan, true, 0.92)
+    draw_text(cr, 18, trace_top + 13, "LIVE TRACE // REAL CACHE STREAM // 12 LINES", 7, colors.cyan, true, 0.92)
+    local cursor_alpha = 0.30 + 0.70 * math.abs(math.sin(animation_time * 5.5))
+    draw_text(cr, 680, trace_top + 13, "STREAM > _", 7, colors.green, true, cursor_alpha)
 
     local count = #events
-    local first_index = math.max(1, count - 1)
-    local y = trace_top + 25
+    local first_index = math.max(1, count - trace_limit + 1)
+    local visible_count = math.max(1, count - first_index + 1)
+    local y = trace_top + 31
+
     for index = first_index, count do
         local event = events[index]
         if event ~= nil then
+            local rank = index - first_index + 1
+            local fade = 0.30 + 0.70 * (rank / visible_count)
             local color = category_colors[event.category] or colors.white
-            draw_text(cr, 18, y, event.time .. " [" .. event.category .. "]", 7, color, true, 0.95)
-            draw_text(cr, 118, y, event.message, 7, colors.white, false, 0.88)
-            y = y + 11
+            local marker = index == count and ">" or " "
+            draw_text(cr, 18, y, marker, 7, color, true, fade)
+            draw_text(cr, 30, y, event.time .. " [" .. event.category .. "]", 7, color, true, fade)
+            draw_text(cr, 132, y, event.message, 7, colors.white, false, fade * 0.96)
+            y = y + trace_line_step
         end
     end
 end
@@ -298,7 +375,7 @@ function render.draw_dashboard(cr, metrics, animation_time)
 end
 
 function render.draw_ticker(cr, metrics, alpha, animation_time)
-    draw_live_trace(cr)
+    draw_live_trace(cr, animation_time)
     draw_scanlines(cr, trace_top, height)
 end
 
