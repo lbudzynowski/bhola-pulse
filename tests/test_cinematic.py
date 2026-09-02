@@ -26,12 +26,44 @@ class CinematicRendererTests(unittest.TestCase):
             "LIVE TRACE // REAL CACHE STREAM // 12 LINES",
             "local function draw_boot_sequence",
             "local function draw_scanlines",
-            "local function draw_glitch",
+            "local function draw_glitch_burst",
+            "local function draw_ascii_skull",
+            "local skull_lines = {",
+            "local glitch_slices = {",
             "local function draw_hud",
             "cinematic telemetry linked",
             "STREAM > _",
         ):
             self.assertIn(marker, cinematic)
+
+    def test_glitch_re_renders_real_scene_slices_and_uses_original_ascii_skull(self) -> None:
+        cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
+
+        self.assertIn("local glitch_cycle_seconds = 11.7", cinematic)
+        self.assertIn("local glitch_burst_seconds = 0.75", cinematic)
+        self.assertIn("cairo_rectangle(cr, 0, y, width, h)", cinematic)
+        self.assertIn("cairo_clip(cr)", cinematic)
+        self.assertIn("cairo_translate(cr, dx, 0)", cinematic)
+        self.assertIn("draw_scene(cr, metrics, animation_time)", cinematic)
+        self.assertIn("cycle_index % 3 ~= 0", cinematic)
+        self.assertIn("draw_text(cr, base_x + dx - 3", cinematic)
+        self.assertIn("draw_text(cr, base_x + dx + 3", cinematic)
+        self.assertIn("draw_text(cr, base_x + dx, y, line", cinematic)
+
+        # The skull is source text in this repository, not an external image asset.
+        self.assertNotIn(".png", cinematic.lower())
+        self.assertNotIn(".jpg", cinematic.lower())
+        self.assertNotIn(".svg", cinematic.lower())
+
+    def test_boot_hides_live_trace_until_cinematic_is_online(self) -> None:
+        cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
+
+        self.assertIn("local boot_duration = 4.6", cinematic)
+        boot_branch = cinematic.index("if animation_time < boot_duration then")
+        live_scene = cinematic.index("draw_scene(cr, metrics, animation_time)", boot_branch)
+        return_in_boot = cinematic.index("return", boot_branch)
+        self.assertLess(return_in_boot, live_scene)
+        self.assertIn("Cinematic owns the full 760x720 scene", cinematic)
 
     def test_live_trace_only_uses_real_existing_cache_categories(self) -> None:
         cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
