@@ -134,19 +134,27 @@ class CinematicRendererTests(unittest.TestCase):
 
     def test_source_editor_autotypes_real_provider_excerpt_one_character_per_step(self) -> None:
         panels = (ROOT / "conky/bhola_cinetty_panels.lua").read_text(encoding="utf-8")
+        excerpt = (ROOT / "conky/bhola_source_excerpt.lua").read_text(encoding="utf-8")
         provider = (ROOT / "src/bhola_provider.py").read_text(encoding="utf-8")
+
+        self.assertIn('local source_lines = require("conky.bhola_source_excerpt")', panels)
+        self.assertIn("local source_line_base = 130", panels)
+        self.assertGreaterEqual(len(excerpt.splitlines()), 280)
 
         for source_line in (
             "def create_scheduler(collectors: SystemCollectors, start: float) -> SourceScheduler:",
             '            "fast",',
-            "            collectors.fast,",
-            '            "network_activity",',
-            "            collectors.network_activity,",
-            '                "network_download_bytes_per_second": 0.0,',
-            '                "disk_read_bytes_per_second": 0.0,',
+            '            "temperatures",',
+            '            "network_route",',
+            "def create_probe_manager(",
+            '                "network_public_ip",',
+            "def run_provider(",
+            "def parse_args() -> argparse.Namespace:",
+            "def main() -> int:",
+            'if __name__ == "__main__":',
         ):
             self.assertIn(source_line, provider)
-            self.assertIn(source_line, panels)
+            self.assertIn(source_line, excerpt)
 
         self.assertIn("local source_char_step_seconds = 0.02", panels)
         self.assertIn("local source_typed_chars = 0", panels)
