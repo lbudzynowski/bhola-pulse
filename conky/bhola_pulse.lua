@@ -6,6 +6,7 @@ local state_file = os.getenv("BHOLA_STATE_FILE") or "state/dashboard.json"
 local renderer_modules = {
     modern = "conky.bhola_render",
     nerd = "conky.bhola_render_nerd",
+    cinematic = "conky.bhola_render_cinematic",
 }
 if renderer_modules[style] == nil then
     error("invalid BHOLA_STYLE: " .. style)
