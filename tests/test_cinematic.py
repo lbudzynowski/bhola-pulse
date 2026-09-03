@@ -132,7 +132,7 @@ class CinematicRendererTests(unittest.TestCase):
         ):
             self.assertIn(f"metrics.{metric}", panels)
 
-    def test_source_editor_autotypes_real_provider_excerpt_with_cursor(self) -> None:
+    def test_source_editor_autotypes_real_provider_excerpt_one_character_per_step(self) -> None:
         panels = (ROOT / "conky/bhola_cinetty_panels.lua").read_text(encoding="utf-8")
         provider = (ROOT / "src/bhola_provider.py").read_text(encoding="utf-8")
 
@@ -148,11 +148,21 @@ class CinematicRendererTests(unittest.TestCase):
             self.assertIn(source_line, provider)
             self.assertIn(source_line, panels)
 
-        self.assertIn("local source_chars_per_second = 38", panels)
+        self.assertIn("local source_char_step_seconds = 0.30", panels)
+        self.assertIn("local source_typed_chars = 0", panels)
+        self.assertIn("local function advance_source_typing(animation_time)", panels)
+        self.assertIn("if source_last_draw_time == animation_time then", panels)
+        self.assertIn(
+            "source_typed_chars = math.min(source_total_chars, source_typed_chars + 1)",
+            panels,
+        )
         self.assertIn("local function source_typing_state(animation_time)", panels)
         self.assertIn("local current_line, current_col = source_typing_state(animation_time)", panels)
-        self.assertIn("current_col * 3.62", panels)
-        self.assertIn("cairo_rectangle(cr, cursor_x, cursor_y - 7, 4.5, 8)", panels)
+        self.assertIn("visible_text = string.sub(full_line, 1, current_col)", panels)
+        self.assertIn('string.rep(" ", current_col) .. "█"', panels)
+        self.assertNotIn("current_col * 3.62", panels)
+        self.assertNotIn("cairo_rectangle(cr, cursor_x", panels)
+        self.assertNotIn("source_chars_per_second", panels)
         self.assertIn("READ-ONLY", panels)
 
     def test_cinematic_gets_extra_height_without_changing_other_styles(self) -> None:
