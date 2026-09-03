@@ -14,7 +14,7 @@ local stream_visible_lines = 14
 local stream_line_step = 10
 local stream_buffer_limit = 48
 local stream_records_per_second = 4
-local source_chars_per_second = 38
+local source_char_step_seconds = 0.30
 local source_hold_seconds = 2.0
 
 local colors = {
@@ -102,6 +102,10 @@ local last_epoch = -1
 local event_sequence = 0
 local last_visual_slot = -1
 local previous_cpu_thermal_band = nil
+local source_typed_chars = 0
+local source_last_step_time = nil
+local source_last_draw_time = nil
+local source_hold_started_at = nil
 
 local function set_source(cr, color, alpha)
     cairo_set_source_rgba(cr, color[1], color[2], color[3], alpha or 1)
@@ -316,14 +320,44 @@ local function source_line_color(line)
     return colors.white
 end
 
-local function source_typing_state(animation_time)
-    local typing_seconds = source_total_chars / source_chars_per_second
-    local cycle_seconds = typing_seconds + source_hold_seconds
-    local phase = animation_time % cycle_seconds
-    local typed_chars = math.floor(math.min(phase, typing_seconds) * source_chars_per_second)
-    typed_chars = math.min(source_total_chars, typed_chars)
+local function advance_source_typing(animation_time)
+    -- draw_scene() can be called repeatedly with the same animation timestamp
+    -- during glitch slicing. Advance at most once for a rendered timestamp and
+    -- at most one character per visible step so the cursor never jumps words.
+    if source_last_draw_time == animation_time then
+        return
+    end
+    source_last_draw_time = animation_time
 
-    local remaining = typed_chars
+    if source_typed_chars >= source_total_chars then
+        if source_hold_started_at == nil then
+            source_hold_started_at = animation_time
+            return
+        end
+        if animation_time - source_hold_started_at >= source_hold_seconds then
+            source_typed_chars = 0
+            source_last_step_time = animation_time
+            source_hold_started_at = nil
+        end
+        return
+    end
+
+    source_hold_started_at = nil
+    if source_last_step_time == nil then
+        source_last_step_time = animation_time
+        return
+    end
+
+    if animation_time - source_last_step_time >= source_char_step_seconds then
+        source_typed_chars = math.min(source_total_chars, source_typed_chars + 1)
+        source_last_step_time = animation_time
+    end
+end
+
+local function source_typing_state(animation_time)
+    advance_source_typing(animation_time)
+
+    local remaining = source_typed_chars
     local current_line = 1
     local current_col = 0
 
@@ -340,7 +374,7 @@ local function source_typing_state(animation_time)
         end
     end
 
-    if typed_chars >= source_total_chars then
+    if source_typed_chars >= source_total_chars then
         current_line = #source_lines
         current_col = #source_lines[#source_lines]
     end
@@ -368,6 +402,7 @@ local function draw_source_editor(cr, animation_time)
             local full_line = source_lines[index]
             local visible_text = full_line
             if index == current_line then
+                -- Never render any character to the right of the cursor.
                 visible_text = string.sub(full_line, 1, current_col)
             end
             local y = code_y + (index - first_line) * editor_line_step
@@ -379,12 +414,21 @@ local function draw_source_editor(cr, animation_time)
 
     local cursor_row = current_line - first_line
     if cursor_row >= 0 and cursor_row < editor_visible_lines then
-        local cursor_x = code_x + current_col * 3.62
         local cursor_y = code_y + cursor_row * editor_line_step
         local cursor_alpha = 0.30 + 0.70 * math.abs(math.sin(animation_time * 8.0))
-        set_source(cr, colors.green, cursor_alpha)
-        cairo_rectangle(cr, cursor_x, cursor_y - 7, 4.5, 8)
-        cairo_fill(cr)
+        -- Use the same monospace text layout as the source itself. Spaces are
+        -- invisible; the block therefore lands exactly in the next character
+        -- cell after visible_text, with no hand-tuned pixel approximation.
+        draw_text(
+            cr,
+            code_x,
+            cursor_y,
+            string.rep(" ", current_col) .. "█",
+            6.0,
+            colors.green,
+            false,
+            cursor_alpha
+        )
     end
     cairo_restore(cr)
 
