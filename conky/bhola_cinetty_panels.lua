@@ -14,7 +14,7 @@ local stream_visible_lines = 14
 local stream_line_step = 10
 local stream_buffer_limit = 48
 local stream_records_per_second = 4
-local source_char_step_seconds = 0.30
+local source_char_step_seconds = 0.05
 local source_hold_seconds = 2.0
 
 local colors = {
