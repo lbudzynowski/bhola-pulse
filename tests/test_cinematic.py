@@ -148,7 +148,7 @@ class CinematicRendererTests(unittest.TestCase):
             self.assertIn(source_line, provider)
             self.assertIn(source_line, panels)
 
-        self.assertIn("local source_char_step_seconds = 0.30", panels)
+        self.assertIn("local source_char_step_seconds = 0.05", panels)
         self.assertIn("local source_typed_chars = 0", panels)
         self.assertIn("local function advance_source_typing(animation_time)", panels)
         self.assertIn("if source_last_draw_time == animation_time then", panels)
@@ -164,6 +164,16 @@ class CinematicRendererTests(unittest.TestCase):
         self.assertNotIn("cairo_rectangle(cr, cursor_x", panels)
         self.assertNotIn("source_chars_per_second", panels)
         self.assertIn("READ-ONLY", panels)
+
+    def test_cinematic_uses_faster_render_cadence_without_changing_other_styles(self) -> None:
+        launcher = (ROOT / "scripts/run-dev.sh").read_text(encoding="utf-8")
+
+        self.assertIn('if [[ $dashboard_style == cinematic ]]; then', launcher)
+        self.assertIn("render_interval=0.10", launcher)
+        self.assertIn(
+            'render_interval=$(python3 -m src.bhola_monitors --render-interval "${#monitor_indices[@]}")',
+            launcher,
+        )
 
     def test_cinematic_gets_extra_height_without_changing_other_styles(self) -> None:
         cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
