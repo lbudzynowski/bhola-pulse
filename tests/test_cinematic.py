@@ -148,7 +148,7 @@ class CinematicRendererTests(unittest.TestCase):
             self.assertIn(source_line, provider)
             self.assertIn(source_line, panels)
 
-        self.assertIn("local source_char_step_seconds = 0.05", panels)
+        self.assertIn("local source_char_step_seconds = 0.02", panels)
         self.assertIn("local source_typed_chars = 0", panels)
         self.assertIn("local function advance_source_typing(animation_time)", panels)
         self.assertIn("if source_last_draw_time == animation_time then", panels)
@@ -169,7 +169,7 @@ class CinematicRendererTests(unittest.TestCase):
         launcher = (ROOT / "scripts/run-dev.sh").read_text(encoding="utf-8")
 
         self.assertIn('if [[ $dashboard_style == cinematic ]]; then', launcher)
-        self.assertIn("render_interval=0.05", launcher)
+        self.assertIn("render_interval=0.03", launcher)
         self.assertIn(
             'render_interval=$(python3 -m src.bhola_monitors --render-interval "${#monitor_indices[@]}")',
             launcher,
