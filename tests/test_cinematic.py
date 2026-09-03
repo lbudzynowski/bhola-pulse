@@ -169,7 +169,7 @@ class CinematicRendererTests(unittest.TestCase):
         launcher = (ROOT / "scripts/run-dev.sh").read_text(encoding="utf-8")
 
         self.assertIn('if [[ $dashboard_style == cinematic ]]; then', launcher)
-        self.assertIn("render_interval=0.10", launcher)
+        self.assertIn("render_interval=0.05", launcher)
         self.assertIn(
             'render_interval=$(python3 -m src.bhola_monitors --render-interval "${#monitor_indices[@]}")',
             launcher,
