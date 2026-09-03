@@ -49,46 +49,10 @@ local tracked_fields = {
     {key = "service_monitors", category = "SVC", label = "local-mon"},
 }
 
--- Exact excerpt from src/bhola_provider.py on this branch. It is presentation
--- source text only: the panel does not compile, execute, or mutate the file.
+-- Exact contiguous excerpt from src/bhola_provider.py, lines 130 through EOF.
+-- It is presentation source text only: the panel never executes or mutates it.
 local source_line_base = 130
-local source_lines = {
-    [[def create_scheduler(collectors: SystemCollectors, start: float) -> SourceScheduler:]],
-    [[    sources = []],
-    [[        ScheduledSource(]],
-    [[            "fast",]],
-    [[            1.0,]],
-    [[            collectors.fast,]],
-    [[            {]],
-    [[                "cpu_percent": 0.0,]],
-    [[                "memory_percent": 0.0,]],
-    [[                "load_1": 0.0,]],
-    [[                "load_5": 0.0,]],
-    [[                "load_15": 0.0,]],
-    [[                "uptime_seconds": 0,]],
-    [[            },]],
-    [[        ),]],
-    [[        ScheduledSource(]],
-    [[            "network_activity",]],
-    [[            1.0,]],
-    [[            collectors.network_activity,]],
-    [[            {]],
-    [[                "network_download_bytes_per_second": 0.0,]],
-    [[                "network_upload_bytes_per_second": 0.0,]],
-    [[            },]],
-    [[        ),]],
-    [[        ScheduledSource(]],
-    [[            "activity",]],
-    [[            2.0,]],
-    [[            collectors.activity,]],
-    [[            {]],
-    [[                "disk_read_bytes_per_second": 0.0,]],
-    [[                "disk_write_bytes_per_second": 0.0,]],
-    [[                "disk_rate_estimated": True,]],
-    [[                "process_count": 0,]],
-    [[            },]],
-    [[        ),]],
-}
+local source_lines = require("conky.bhola_source_excerpt")
 
 local source_total_chars = 0
 for _, line in ipairs(source_lines) do
