@@ -101,6 +101,9 @@ fi
 
 read -r -a monitor_indices <<<"$(python3 -m src.bhola_monitors --indices)"
 render_interval=$(python3 -m src.bhola_monitors --render-interval "${#monitor_indices[@]}")
+if [[ $dashboard_style == cinematic ]]; then
+    render_interval=0.10
+fi
 default_scale=${BHOLA_SCALE:-1.25}
 if [[ ! $default_scale =~ ^([0-9]+([.][0-9]*)?|[.][0-9]+)$ ]]; then
     printf 'Invalid BHOLA_SCALE=%q; using 1.25.\n' "$default_scale" >&2
