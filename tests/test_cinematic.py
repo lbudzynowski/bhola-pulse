@@ -11,19 +11,25 @@ class CinematicRendererTests(unittest.TestCase):
     def test_cinematic_is_separate_wrapper_over_nerd(self) -> None:
         pulse = (ROOT / "conky/bhola_pulse.lua").read_text(encoding="utf-8")
         cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
+        panels = (ROOT / "conky/bhola_cinetty_panels.lua").read_text(encoding="utf-8")
         nerd = (ROOT / "conky/bhola_render_nerd.lua").read_text(encoding="utf-8")
 
         self.assertIn('cinematic = "conky.bhola_render_cinematic"', pulse)
         self.assertIn('local nerd = require("conky.bhola_render_nerd")', cinematic)
+        self.assertIn('local cinetty = require("conky.bhola_cinetty_panels")', cinematic)
         self.assertIn("nerd.update(metrics)", cinematic)
+        self.assertIn("cinetty.update(metrics)", cinematic)
         self.assertIn("nerd.draw_dashboard(cr, metrics, animation_time)", cinematic)
+        self.assertIn("cinetty.draw(cr, metrics, animation_time)", cinematic)
         self.assertIn("function render.draw_ticker", cinematic)
         self.assertNotEqual(cinematic, nerd)
+        self.assertTrue(panels)
 
     def test_cinematic_has_requested_effects(self) -> None:
         cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
+        panels = (ROOT / "conky/bhola_cinetty_panels.lua").read_text(encoding="utf-8")
+
         for marker in (
-            "LIVE TRACE // REAL CACHE STREAM // 12 LINES",
             "local function draw_boot_sequence",
             "local function draw_scanlines",
             "local function draw_glitch_burst",
@@ -31,12 +37,21 @@ class CinematicRendererTests(unittest.TestCase):
             "local skull_lines = {",
             "local glitch_slices = {",
             "local function draw_hud",
-            "cinematic telemetry linked",
-            "STREAM > _",
         ):
             self.assertIn(marker, cinematic)
 
-    def test_glitch_re_renders_real_scene_slices_and_uses_original_ascii_skull(self) -> None:
+        for marker in (
+            "SOURCE // src/bhola_provider.py",
+            "REAL CACHE // EVENT STREAM",
+            "AUTO-TYPE",
+            "4 REC/S",
+            "CACHE VALUES // TRANSITIONS PRIORITY",
+            "local function draw_source_editor",
+            "local function draw_event_stream",
+        ):
+            self.assertIn(marker, panels)
+
+    def test_glitch_re_renders_real_scene_slices_and_uses_selected_ascii_skull(self) -> None:
         cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
 
         self.assertIn("local glitch_cycle_seconds = 11.7", cinematic)
@@ -51,13 +66,13 @@ class CinematicRendererTests(unittest.TestCase):
         self.assertIn("draw_text(cr, base_x + dx - 3", cinematic)
         self.assertIn("draw_text(cr, base_x + dx + 3", cinematic)
         self.assertIn("draw_text(cr, base_x + dx, y, line", cinematic)
+        self.assertIn("Selected reference #1", cinematic)
 
-        # The skull is source text in this repository, not an external image asset.
         self.assertNotIn(".png", cinematic.lower())
         self.assertNotIn(".jpg", cinematic.lower())
         self.assertNotIn(".svg", cinematic.lower())
 
-    def test_boot_hides_live_trace_until_cinematic_is_online(self) -> None:
+    def test_boot_hides_cinetty_panels_until_cinematic_is_online(self) -> None:
         cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
 
         self.assertIn("local boot_duration = 4.6", cinematic)
@@ -65,14 +80,15 @@ class CinematicRendererTests(unittest.TestCase):
         live_scene = cinematic.index("draw_scene(cr, metrics, animation_time)", boot_branch)
         return_in_boot = cinematic.index("return", boot_branch)
         self.assertLess(return_in_boot, live_scene)
-        self.assertIn("Cinematic owns the full 760x720 scene", cinematic)
+        self.assertIn("CineTTY-inspired lower panels", cinematic)
 
-    def test_live_trace_only_uses_real_existing_cache_categories(self) -> None:
-        cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
+    def test_event_stream_only_uses_real_existing_cache_categories(self) -> None:
+        panels = (ROOT / "conky/bhola_cinetty_panels.lua").read_text(encoding="utf-8")
+
         for category in ("PULSE", "SYS", "NET", "SVC"):
-            self.assertIn(f'{category} = colors.', cinematic)
-        for invented_category in ("GIT", "APT", "PPA"):
-            self.assertNotIn(f'{invented_category} = colors.', cinematic)
+            self.assertIn(f'{category} = colors.', panels)
+        for invented_category in ("GIT", "APT", "PPA", "IRQ", "NVME"):
+            self.assertNotIn(f'{invented_category} = colors.', panels)
 
         for field in (
             "provider_status",
@@ -83,21 +99,23 @@ class CinematicRendererTests(unittest.TestCase):
             "service_ufw",
             "service_fortivpn",
             "service_ntfy",
+            "service_monitors",
         ):
-            self.assertIn(f'key = "{field}"', cinematic)
+            self.assertIn(f'key = "{field}"', panels)
 
-    def test_live_trace_scrolls_twelve_real_cache_lines(self) -> None:
-        cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
+    def test_event_stream_samples_real_cache_four_times_per_second(self) -> None:
+        panels = (ROOT / "conky/bhola_cinetty_panels.lua").read_text(encoding="utf-8")
 
-        self.assertIn("local trace_limit = 12", cinematic)
-        self.assertIn("local trace_sample_seconds = 1", cinematic)
-        self.assertIn("local function emit_trace_sample(metrics, epoch)", cinematic)
-        self.assertIn("trace_sample_slot = (trace_sample_slot % 4) + 1", cinematic)
-        self.assertIn("while #events > trace_limit do", cinematic)
-        self.assertIn("table.remove(events, 1)", cinematic)
-        self.assertIn("local first_index = math.max(1, count - trace_limit + 1)", cinematic)
-        self.assertIn("local fade = 0.30 + 0.70 * (rank / visible_count)", cinematic)
-        self.assertIn('local marker = index == count and ">" or " "', cinematic)
+        self.assertIn("local stream_records_per_second = 4", panels)
+        self.assertIn("local stream_buffer_limit = 48", panels)
+        self.assertIn("local stream_visible_lines = 14", panels)
+        self.assertIn("local function emit_visual_samples(metrics, animation_time)", panels)
+        self.assertIn("math.floor(animation_time * stream_records_per_second)", panels)
+        self.assertIn("while #events > stream_buffer_limit do", panels)
+        self.assertIn("table.remove(events, 1)", panels)
+        self.assertIn('kind = kind or "EVT"', panels)
+        self.assertIn('"SMP"', panels)
+        self.assertIn('"EVT"', panels)
 
         for metric in (
             "cpu_percent",
@@ -112,16 +130,43 @@ class CinematicRendererTests(unittest.TestCase):
             "temperature_cpu_c",
             "service_monitors",
         ):
-            self.assertIn(f"metrics.{metric}", cinematic)
+            self.assertIn(f"metrics.{metric}", panels)
+
+    def test_source_editor_autotypes_real_provider_excerpt_with_cursor(self) -> None:
+        panels = (ROOT / "conky/bhola_cinetty_panels.lua").read_text(encoding="utf-8")
+        provider = (ROOT / "src/bhola_provider.py").read_text(encoding="utf-8")
+
+        for source_line in (
+            "def create_scheduler(collectors: SystemCollectors, start: float) -> SourceScheduler:",
+            '            "fast",',
+            "            collectors.fast,",
+            '            "network_activity",',
+            "            collectors.network_activity,",
+            '                "network_download_bytes_per_second": 0.0,',
+            '                "disk_read_bytes_per_second": 0.0,',
+        ):
+            self.assertIn(source_line, provider)
+            self.assertIn(source_line, panels)
+
+        self.assertIn("local source_chars_per_second = 38", panels)
+        self.assertIn("local function source_typing_state(animation_time)", panels)
+        self.assertIn("local current_line, current_col = source_typing_state(animation_time)", panels)
+        self.assertIn("current_col * 3.62", panels)
+        self.assertIn("cairo_rectangle(cr, cursor_x, cursor_y - 7, 4.5, 8)", panels)
+        self.assertIn("READ-ONLY", panels)
 
     def test_cinematic_gets_extra_height_without_changing_other_styles(self) -> None:
         cinematic = (ROOT / "conky/bhola_render_cinematic.lua").read_text(encoding="utf-8")
+        panels = (ROOT / "conky/bhola_cinetty_panels.lua").read_text(encoding="utf-8")
         config = (ROOT / "conky/bhola-pulse.conf").read_text(encoding="utf-8")
 
         self.assertIn("local width = 760", cinematic)
         self.assertIn("local height = 720", cinematic)
-        self.assertIn("local trace_top = 526", cinematic)
-        self.assertIn("local trace_height = 188", cinematic)
+        self.assertIn("local lower_top = 526", panels)
+        self.assertIn("local lower_height = 188", panels)
+        self.assertIn("local editor_width = 364", panels)
+        self.assertIn("local stream_x = 380", panels)
+        self.assertIn("local stream_width = 372", panels)
         self.assertIn("local base_height = 570", config)
         self.assertIn("local cinematic_height = 720", config)
         self.assertIn("if style == 'cinematic' then", config)
