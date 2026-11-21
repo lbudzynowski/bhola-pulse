@@ -77,6 +77,21 @@ class InstalledLauncherTests(unittest.TestCase):
         default = self.run_launcher("config", "show")
         self.assertEqual(default.stdout, "style=modern source=default\n")
 
+    def test_monitor_selection_persists_safely_and_can_be_reset(self) -> None:
+        saved = self.run_launcher("config", "monitors", "set", "0,2")
+        self.assertEqual(saved.returncode, 0, saved.stderr)
+        self.assertIn("Saved Bhola Pulse monitors: 0,2", saved.stdout)
+        path = self.config_home / "bhola-pulse" / "monitors"
+        self.assertEqual(path.read_text(), "0,2\n")
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+        self.assertIn("monitors=0,2", self.run_launcher("config", "monitors", "show").stdout)
+        invalid = self.run_launcher("config", "monitors", "set", "0,0")
+        self.assertEqual(invalid.returncode, 2)
+        self.assertEqual(path.read_text(), "0,2\n")
+        self.assertEqual(self.run_launcher("config", "monitors", "reset").returncode, 0)
+        self.assertFalse(path.exists())
+        self.assertIn("monitors=all", self.run_launcher("config", "monitors", "show").stdout)
+
     def test_cinematic_style_can_be_saved_and_reaches_runtime(self) -> None:
         saved = self.run_launcher("config", "set", "cinematic")
         self.assertEqual(saved.returncode, 0, saved.stderr)
