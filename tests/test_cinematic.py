@@ -98,7 +98,7 @@ class CinematicRendererTests(unittest.TestCase):
             "network_https_status",
             "service_ufw",
             "service_ssh",
-            "service_bluetooth",
+            "service_numberpad",
             "service_ntfy",
             "service_monitors",
         ):

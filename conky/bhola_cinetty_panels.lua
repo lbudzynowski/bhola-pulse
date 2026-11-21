@@ -45,7 +45,7 @@ local tracked_fields = {
     {key = "network_https_status", category = "NET", label = "https"},
     {key = "service_ufw", category = "SVC", label = "ufw"},
     {key = "service_ssh", category = "SVC", label = "ssh"},
-    {key = "service_bluetooth", category = "SVC", label = "bt"},
+    {key = "service_numberpad", category = "SVC", label = "numlock"},
     {key = "service_ntfy", category = "SVC", label = "ntfy"},
     {key = "service_monitors", category = "SVC", label = "local-mon"},
 }
@@ -196,7 +196,7 @@ local function emit_sample(metrics, epoch, slot)
             "SVC",
             "ufw=" .. status(metrics.service_ufw)
                 .. " ssh=" .. status(metrics.service_ssh)
-                .. " bt=" .. status(metrics.service_bluetooth)
+                .. " num=" .. status(metrics.service_numberpad)
                 .. " ntfy=" .. status(metrics.service_ntfy)
                 .. " mon=" .. status(metrics.service_monitors),
             epoch,

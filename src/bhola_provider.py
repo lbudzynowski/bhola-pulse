@@ -52,7 +52,6 @@ DEFAULT_PAYLOAD: dict[str, object] = {
     "battery_state": "unknown",
     "service_ufw": "unknown",
     "service_ssh": "unknown",
-    "service_bluetooth": "unknown",
     "service_fortivpn": "unknown",
     "service_numberpad": "unknown",
     "service_ntfy": "unknown",
@@ -63,8 +62,6 @@ DEFAULT_PAYLOAD: dict[str, object] = {
     "service_ufw_confidence": "low",
     "service_ssh_detail": "pending",
     "service_ssh_confidence": "low",
-    "service_bluetooth_detail": "pending",
-    "service_bluetooth_confidence": "low",
     "service_fortivpn_process": False,
     "service_fortivpn_tunnel": False,
     "service_fortivpn_indicator": False,
@@ -120,7 +117,7 @@ DEFAULT_PAYLOAD: dict[str, object] = {
 }
 
 
-for _service_name in ("ufw", "ssh", "bluetooth", "fortivpn", "numberpad", "ntfy", "monitors"):
+for _service_name in ("ufw", "ssh", "fortivpn", "numberpad", "ntfy", "monitors"):
     DEFAULT_PAYLOAD[f"service_{_service_name}_last_success_epoch"] = 0
     DEFAULT_PAYLOAD[f"service_{_service_name}_age_seconds"] = None
     DEFAULT_PAYLOAD[f"service_{_service_name}_source_state"] = "pending"
@@ -321,7 +318,7 @@ def create_probe_manager(
 def _refresh_local_ages(payload: dict[str, object], wall_epoch: int) -> None:
     prefixes = ["network_route"] + [
         f"service_{name}"
-        for name in ("ufw", "ssh", "bluetooth", "fortivpn", "numberpad", "ntfy", "monitors")
+        for name in ("ufw", "ssh", "fortivpn", "numberpad", "ntfy", "monitors")
     ]
     for prefix in prefixes:
         last_success = payload.get(f"{prefix}_last_success_epoch")
