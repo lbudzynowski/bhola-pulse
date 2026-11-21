@@ -42,6 +42,15 @@ class TwoColumnLayoutTests(unittest.TestCase):
         for content in (config, pulse):
             self.assertIn("math.max(1.0, math.min(1.5, scale))", content)
 
+    def test_x11_backend_is_explicit_for_conky_122_wayland_builds(self) -> None:
+        config = (ROOT / "conky/bhola-pulse.conf").read_text(encoding="utf-8")
+        # Conky 1.22 defaults to Wayland when that support is compiled in;
+        # the legacy Cairo Xlib surface requires X11-specific conky_window fields.
+        self.assertRegex(config, r"(?m)^\s*out_to_x\s*=\s*true,\s*$")
+        self.assertRegex(config, r"(?m)^\s*out_to_wayland\s*=\s*false,\s*$")
+        pulse = (ROOT / "conky/bhola_pulse.lua").read_text(encoding="utf-8")
+        self.assertIn("surfaces.acquire(conky_window, conky_surface)", pulse)
+
     def test_cairo_font_rendering_uses_full_hinting(self) -> None:
         pulse = (ROOT / "conky/bhola_pulse.lua").read_text(encoding="utf-8")
         self.assertIn("cairo_font_options_create()", pulse)
