@@ -15,23 +15,27 @@ conky/bhola_pulse.lua:39: attempt to call a nil value
 A passing preflight proved only the provider, monitor discovery and XShape
 helper, **not** a successful graphical draw.
 
-### Second Haiyan test: 0.1.3-1 candidate still failed
+### Haiyan live test of the first 0.1.3-1 candidate
 
-The first 0.1.3-1 PR artifact eliminated the original nil-constructor error,
-but both modern and nerd reported `Bhola Pulse: X11 drawing window is not ready`
-for all three monitor heads. This was **not a successful live render**.
+On Haiyan, the first CI-built 0.1.3-1 artifact installed successfully
+with a verified SHA256SUMS. Both `--style nerd` and `--style modern`
+started and the user explicitly confirmed that **everything was displayed**.
+The previous recurring `cairo_xlib_surface_create` error did not recur.
 
-Root cause from Conky v1.22.2 source: `src/conky.cc` enables
-`out_to_wayland` by default when Conky was compiled with Wayland support.
-`src/lua/llua.cc` only populates the `conky_window.display`,
-`drawable`, and `visual` Xlib fields when `out_to_x` is enabled.
-Our XShape click-through helper also requires X11/XWayland, not native
-Wayland. The original package config did not select the backend.
+During startup each monitor instance printed
+`Bhola Pulse: X11 drawing window is not ready` once. This diagnostic
+is emitted only on the first unavailable drawing frame per process and
+does **not** prove a lasting draw failure: later frames may recover.
+The first interpretation of that line as a rendering outage was wrong.
 
-The follow-up PR fix explicitly sets `out_to_x = true` and
-`out_to_wayland = false` in `conky/bhola-pulse.conf` for the supported
-Conky 1.22.x path. That selection must be verified with a **new** PR
-artifact on Haiyan before claiming success. Tests now protect these settings.
+Conky v1.22.2 has distinct X11/Wayland output settings and exposes
+X11-specific window fields conditionally, but the **observed visual
+success** means there was no basis for forcibly switching the backend
+in this release. The speculative `out_to_x=true` / `out_to_wayland=false`
+override was removed again before merge. Treat the startup diagnostic
+as a possible transient and investigate separately if it persists or
+panels really fail to update. A one-line startup warning is not
+equivalent to a failed graphical test.
 
 ## Upstream changes in May 2026
 
@@ -80,8 +84,8 @@ missing Cairo Xlib support.
 | --- | --- | --- |
 | Conky 1.22.x split Xlib module | `nil cairo_xlib_surface_create` on the old release | Install a candidate with the separately required `cairo_xlib` module; use our verified XWayland configuration |
 | Conky build without Xlib Cairo support and without `conky_surface()` | No renderer; one clear diagnostic | Install appropriate Conky build or update to 1.23+ |
-| Conky 1.23+ native Wayland | Cairo surface exists, but native Wayland may lack required XShape/Xinerama semantics | Our window config explicitly opts into XWayland for click-through and Xinerama; native Wayland is not supported by this patch |
-| Conky 1.25+ under Wayland | `out_to_x` compatibility hint may be ignored | Upstream uses explicit `output_backend = "x11"`; add version-aware config selection and retest before advertising support |
+| Conky 1.23+ native Wayland | Cairo surface exists, but native Wayland may lack required XShape/Xinerama semantics | Verify rendering, click-through and monitor selection on a real desktop; no backend switch is forced by this patch |
+| Newer Conky with different output-backend selection | Surface initialization or click-through can behave differently | Test the real compositor and Conky version before forcing any backend choice |
 | 1.23+ alpha/opacity semantics | Panel opacity or stacking changes | Audit old `own_window_argb_visual/value` and `own_window_transparent`; test `own_window_colour` migration separately |
 | Fractional scaling or different compositor | Panel is clipped, badly positioned or blocks clicks | Inspect logical/device pixel handling, XShape and per-display `BHOLA_SCALE_HEAD_n` |
 | Monitor plug/unplug after startup | Stale monitor instances | Restart Bhola Pulse; dynamic hotplug is handled in a separate draft PR |
@@ -105,7 +109,7 @@ Both styles must be tested because they use the same shared draw hook.
 
 `--check` is still **not** a live graphical test; it now says so explicitly.
 CI exercises the two surface API paths under Lua 5.3 without an X server.
-A post-fix live test on Haiyan remains required for release acceptance.
+The user confirmed post-fix visual output on Haiyan in both styles; click-through and ongoing telemetry refresh should still be explicitly checked before release acceptance.
 
 ## Packaging and release safety
 
