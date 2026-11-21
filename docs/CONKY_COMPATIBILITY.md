@@ -13,8 +13,25 @@ conky/bhola_pulse.lua:39: attempt to call a nil value
 ```
 
 A passing preflight proved only the provider, monitor discovery and XShape
-helper, **not** a successful graphical draw. This failure is confirmed only
-for the **pre-fix** installation; a live test of the new package is still due.
+helper, **not** a successful graphical draw.
+
+### Second Haiyan test: 0.1.3-1 candidate still failed
+
+The first 0.1.3-1 PR artifact eliminated the original nil-constructor error,
+but both modern and nerd reported `Bhola Pulse: X11 drawing window is not ready`
+for all three monitor heads. This was **not a successful live render**.
+
+Root cause from Conky v1.22.2 source: `src/conky.cc` enables
+`out_to_wayland` by default when Conky was compiled with Wayland support.
+`src/lua/llua.cc` only populates the `conky_window.display`,
+`drawable`, and `visual` Xlib fields when `out_to_x` is enabled.
+Our XShape click-through helper also requires X11/XWayland, not native
+Wayland. The original package config did not select the backend.
+
+The follow-up PR fix explicitly sets `out_to_x = true` and
+`out_to_wayland = false` in `conky/bhola-pulse.conf` for the supported
+Conky 1.22.x path. That selection must be verified with a **new** PR
+artifact on Haiyan before claiming success. Tests now protect these settings.
 
 ## Upstream changes in May 2026
 
@@ -61,9 +78,10 @@ missing Cairo Xlib support.
 
 | Scenario | Symptom | Mitigation / follow-up |
 | --- | --- | --- |
-| Conky 1.22.x split Xlib module | `nil cairo_xlib_surface_create` on the old release | Install Bhola Pulse 0.1.3+ and a Conky build that includes the `cairo_xlib` Lua binding |
+| Conky 1.22.x split Xlib module | `nil cairo_xlib_surface_create` on the old release | Install a candidate with the separately required `cairo_xlib` module; use our verified XWayland configuration |
 | Conky build without Xlib Cairo support and without `conky_surface()` | No renderer; one clear diagnostic | Install appropriate Conky build or update to 1.23+ |
-| Conky 1.23+ native Wayland | Cairo surface exists, but native Wayland may lack required XShape/Xinerama semantics | Verify our **XWayland** path on the actual desktop; this patch does not promise native Wayland click-through |
+| Conky 1.23+ native Wayland | Cairo surface exists, but native Wayland may lack required XShape/Xinerama semantics | Our window config explicitly opts into XWayland for click-through and Xinerama; native Wayland is not supported by this patch |
+| Conky 1.25+ under Wayland | `out_to_x` compatibility hint may be ignored | Upstream uses explicit `output_backend = "x11"`; add version-aware config selection and retest before advertising support |
 | 1.23+ alpha/opacity semantics | Panel opacity or stacking changes | Audit old `own_window_argb_visual/value` and `own_window_transparent`; test `own_window_colour` migration separately |
 | Fractional scaling or different compositor | Panel is clipped, badly positioned or blocks clicks | Inspect logical/device pixel handling, XShape and per-display `BHOLA_SCALE_HEAD_n` |
 | Monitor plug/unplug after startup | Stale monitor instances | Restart Bhola Pulse; dynamic hotplug is handled in a separate draft PR |
