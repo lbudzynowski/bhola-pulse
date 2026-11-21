@@ -97,7 +97,8 @@ class CinematicRendererTests(unittest.TestCase):
             "network_dns_status",
             "network_https_status",
             "service_ufw",
-            "service_fortivpn",
+            "service_ssh",
+            "service_bluetooth",
             "service_ntfy",
             "service_monitors",
         ):

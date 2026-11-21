@@ -432,8 +432,8 @@ end
 local function draw_status_grid(cr, metrics, animation_time)
     section_header(cr, "STATUS GRID", "03", metrics, animation_time)
     draw_status_item(cr, 20, 67, "UFW", metrics.service_ufw, animation_time, 0)
-    draw_status_item(cr, 190, 67, "FORTIVPN", metrics.service_fortivpn, animation_time, 1)
-    draw_status_item(cr, 20, 119, "NUMBERPAD", metrics.service_numberpad, animation_time, 2)
+    draw_status_item(cr, 190, 67, "SSH", metrics.service_ssh, animation_time, 1)
+    draw_status_item(cr, 20, 119, "BLUETOOTH", metrics.service_bluetooth, animation_time, 2)
     draw_status_item(cr, 190, 119, "NTFY", metrics.service_ntfy, animation_time, 3)
     draw_status_item(cr, 20, 171, "LOCAL MON", metrics.service_monitors, animation_time, 4)
     local updates = metrics.updates_status or "unknown"
@@ -483,9 +483,9 @@ local function draw_network_services(cr, metrics, animation_time)
     draw_inline_status(cr, 20, 108, "DNS", metrics.network_dns_status, animation_time, 0)
     draw_inline_status(cr, 120, 108, "HTTPS", metrics.network_https_status, animation_time, 1)
     draw_inline_status(cr, 235, 108, "GATEWAY", metrics.network_gateway_status, animation_time, 2)
-    draw_inline_status(cr, 20, 128, "VPN", metrics.service_fortivpn, animation_time, 3)
+    draw_inline_status(cr, 20, 128, "SSH", metrics.service_ssh, animation_time, 3)
     draw_inline_status(cr, 120, 128, "UFW", metrics.service_ufw, animation_time, 4)
-    draw_inline_status(cr, 220, 128, "PAD", metrics.service_numberpad, animation_time, 5)
+    draw_inline_status(cr, 220, 128, "BT", metrics.service_bluetooth, animation_time, 5)
     draw_inline_status(cr, 20, 148, "NTFY", metrics.service_ntfy, animation_time, 6)
     draw_inline_status(cr, 160, 148, "MONITORS", metrics.service_monitors, animation_time, 7)
     draw_text(cr, 20, 168, "RX " .. format_rate(metrics.network_download_bytes_per_second), 9, colors.cyan, "left", true)
@@ -532,7 +532,7 @@ local function ticker_messages(metrics)
         "INTERNET " .. status_label(metrics.network_internet_status) .. " / PING " .. value_or_na(metrics.network_latency_ms, "%.0fms"),
         "DNS " .. status_label(metrics.network_dns_status) .. " / HTTPS " .. status_label(metrics.network_https_status),
         "NET RX " .. format_rate(metrics.network_download_bytes_per_second) .. " / TX " .. format_rate(metrics.network_upload_bytes_per_second),
-        "UFW " .. status_label(metrics.service_ufw) .. " / VPN " .. status_label(metrics.service_fortivpn) .. " / NTFY " .. status_label(metrics.service_ntfy),
+        "UFW " .. status_label(metrics.service_ufw) .. " / VPN " .. status_label(metrics.service_ssh) .. " / NTFY " .. status_label(metrics.service_ntfy),
     }
 end
 

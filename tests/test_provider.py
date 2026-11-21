@@ -69,6 +69,8 @@ class FakeCollectors:
     def services(self) -> dict[str, object]:
         return {
             "service_ufw": "degraded",
+            "service_ssh": "off",
+            "service_bluetooth": "ok",
             "service_fortivpn": "off",
             "service_numberpad": "ok",
             "service_ntfy": "ok",
@@ -113,6 +115,8 @@ class ProviderTests(unittest.TestCase):
             self.assertEqual(payload["cpu_percent"], 12.5)
             self.assertIsNone(payload["temperature_cpu_c"])
             self.assertEqual(payload["service_numberpad"], "ok")
+            self.assertEqual(payload["service_ssh"], "off")
+            self.assertEqual(payload["service_bluetooth"], "ok")
             self.assertEqual(payload["top_process_name"], "conky")
             self.assertEqual(payload["network_connection_type"], "wifi")
             self.assertEqual(payload["network_download_bytes_per_second"], 4096.0)
