@@ -90,10 +90,17 @@ package, and install it with APT:
 
 ```bash
 sha256sum --check SHA256SUMS
-sudo apt install ./bhola-pulse_0.1.2-1_all.deb
+sudo apt install ./bhola-pulse_0.1.3-1_all.deb
 bhola-pulse --check
 bhola-pulse
 ```
+
+See [Conky/Cairo May 2026 compatibility and troubleshooting](docs/CONKY_COMPATIBILITY.md)
+for the Conky 1.22.x split `cairo_xlib` bindings, Conky 1.23+
+`conky_surface()`, differences in surface ownership, backend limitations
+and possible user-visible regressions. **A successful `--check` does
+not exercise a graphical draw frame**; confirm actual output in both
+styles before reporting a successful install.
 
 Stop the foreground dashboard with `Ctrl+C`. The launcher terminates every Conky
 instance and the shared provider and does not leave a daemon behind.
