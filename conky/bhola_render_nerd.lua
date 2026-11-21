@@ -333,6 +333,12 @@ local function status_label(state)
         return "ERROR"
     elseif state == "off" then
         return "OFF"
+    elseif state == "na" then
+        return "N/A"
+    elseif state == "current" then
+        return "CURRENT"
+    elseif state == "pending" then
+        return "PENDING"
     end
     return "UNKNOWN"
 end
@@ -346,19 +352,23 @@ local function status_color(state)
         return colors.red
     elseif state == "off" then
         return colors.gray
+    elseif state == "current" then
+        return colors.green
+    elseif state == "pending" then
+        return colors.amber
     end
     return colors.gray
 end
 
 local function status_marker(state, animation_time, phase)
     local pulse = math.floor(animation_time * 2 + phase) % 2 == 0
-    if state == "ok" then
+    if state == "ok" or state == "current" then
         return pulse and "*" or "+"
-    elseif state == "degraded" or state == "partial" then
+    elseif state == "degraded" or state == "partial" or state == "pending" then
         return pulse and ":" or "*"
     elseif state == "error" then
         return pulse and "#" or "*"
-    elseif state == "off" then
+    elseif state == "off" or state == "na" then
         return "."
     end
     return "_"
@@ -426,8 +436,10 @@ local function draw_status_grid(cr, metrics, animation_time)
     draw_status_item(cr, 20, 119, "NUMBERPAD", metrics.service_numberpad, animation_time, 2)
     draw_status_item(cr, 190, 119, "NTFY", metrics.service_ntfy, animation_time, 3)
     draw_status_item(cr, 20, 171, "LOCAL MON", metrics.service_monitors, animation_time, 4)
-    local updates = metrics.updates_status == "ok" and "ok" or "unknown"
-    draw_status_item(cr, 190, 171, "UPDATES", updates, animation_time, 5)
+    local updates = metrics.updates_status or "unknown"
+    local count = metrics.updates_count
+    local label = type(count) == "number" and ("UPDATES (" .. tostring(math.floor(count)) .. ")") or "UPDATES"
+    draw_status_item(cr, 190, 171, label, updates, animation_time, 5)
     local battery = metrics.battery_percent == nil and "N/A" or string.format("%.0f%%", metrics.battery_percent)
     draw_text(cr, 20, 224, "POWER [" .. string.upper(metrics.power_source or "unknown") .. "]", 10, colors.amber, "left", true)
     draw_text(cr, 190, 224, "BATTERY [" .. battery .. "]", 10, colors.green, "left", true)
