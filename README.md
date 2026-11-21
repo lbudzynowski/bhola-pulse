@@ -8,6 +8,14 @@ Bhola Pulse is an animated system-telemetry dashboard for Ubuntu GNOME on
 Wayland/XWayland. It combines one long-lived, standard-library-only Python
 provider, one atomic JSON cache, and transparent Conky/Lua/Cairo renderers.
 
+**Hardware scope:** This is **not an ASUS-only package**. Core Linux
+telemetry can run on other manufacturers' hardware, but some fixed status
+indicators intentionally detect specific optional software (including the
+ASUS Touchpad NumberPad helper). Those optional integrations are **not**
+installation requirements; absent signals can appear as `UNKNOWN`. See
+[hardware requirements, optional integrations and known limitations](docs/hardware-and-optional-integrations.md)
+before deploying to another computer.
+
 The dashboard remains user-scoped and does not change GNOME, display, VPN,
 firewall, or package-manager configuration. A separate, tightly sandboxed
 systemd oneshot verifies UFW runtime state read-only; the dashboard itself
@@ -35,8 +43,9 @@ active at startup:
 
 - **System Pulse** — CPU, RAM, load, uptime, temperatures, power, battery, and
   three large meters;
-- **Status Grid** — honest local states for UFW, FortiVPN, NumberPad, ntfy, and
-  known monitor processes;
+- **Status Grid** — local indicators for UFW, FortiVPN, ASUS NumberPad,
+  locally detected ntfy and known monitoring processes. These are
+  **optional**; some may remain `UNKNOWN` on other hardware.
 - **System Activity** — aggregate disk read/write activity and top-process data;
 - **Network & Services** — aggregate RX/TX, route presence, bounded gateway,
   Internet, DNS, HTTPS, and masked public-address probes.
@@ -86,7 +95,11 @@ removed when the Debian package is uninstalled.
 ## Install
 
 Download the `.deb` and `SHA256SUMS` from the latest GitHub release, verify the
-package, and install it with APT:
+package, and install it with APT. **The public v0.1.2 release has a known
+Cairo compatibility issue with Conky 1.22.2 (Ubuntu 26.04);** the separately
+tested 0.1.3 candidate in [PR #10](https://github.com/lbudzynowski/bhola-pulse/pull/10)
+is not yet part of the public release or published PPA. Read the
+[compatibility guide](docs/hardware-and-optional-integrations.md) before installing:
 
 ```bash
 sha256sum --check SHA256SUMS
@@ -107,7 +120,18 @@ The package depends on:
 - the X11 client library used by the verified click-through helper.
 
 `ping` is recommended. Missing, stale, or invalid optional signals produce an
-honest `unknown` state instead of terminating the dashboard.
+honest `unknown` state instead of terminating the dashboard. On non-ASUS
+hardware, `NUMBERPAD UNKNOWN` is expected without the specific ASUS
+software; `UPDATES UNKNOWN` is currently unconditional because update
+collection is not implemented. `NTFY` only detects specific local
+processes/systemd units, not remote servers; `LOCAL MONITORS` refers to
+recognized monitoring tools, not physical screens. Details and the precise
+meaning of `UNKNOWN`, `OFF`, and `N/A` are documented in the
+[optional integration matrix](docs/hardware-and-optional-integrations.md).
+
+**Important:** `bhola-pulse --check` does not exercise actual graphical
+Cairo rendering. After installation, visually verify `modern` and `nerd`
+in the target desktop session and confirm input click-through.
 
 ### Verified UFW status
 
