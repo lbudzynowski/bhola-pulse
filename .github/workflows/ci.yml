@@ -28,6 +28,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install Lua 5.3 for renderer compatibility tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends lua5.3
+
       - name: Run standard checks
         run: bash scripts/check.sh
 
