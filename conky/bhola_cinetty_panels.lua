@@ -44,7 +44,8 @@ local tracked_fields = {
     {key = "network_dns_status", category = "NET", label = "dns"},
     {key = "network_https_status", category = "NET", label = "https"},
     {key = "service_ufw", category = "SVC", label = "ufw"},
-    {key = "service_fortivpn", category = "SVC", label = "vpn"},
+    {key = "service_ssh", category = "SVC", label = "ssh"},
+    {key = "service_numberpad", category = "SVC", label = "numlock"},
     {key = "service_ntfy", category = "SVC", label = "ntfy"},
     {key = "service_monitors", category = "SVC", label = "local-mon"},
 }
@@ -194,7 +195,8 @@ local function emit_sample(metrics, epoch, slot)
         push_event(
             "SVC",
             "ufw=" .. status(metrics.service_ufw)
-                .. " vpn=" .. status(metrics.service_fortivpn)
+                .. " ssh=" .. status(metrics.service_ssh)
+                .. " num=" .. status(metrics.service_numberpad)
                 .. " ntfy=" .. status(metrics.service_ntfy)
                 .. " mon=" .. status(metrics.service_monitors),
             epoch,

@@ -37,6 +37,8 @@ class ServiceTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.proc = self.root / "proc"
         self.etc = self.root / "etc"
+        self.sys_root = self.root / "sys"
+        self.sys_root.mkdir()
         self.runtime = self.root / "run" / "bhola-pulse"
         self.proc.mkdir()
         (self.etc / "ufw").mkdir(parents=True)
@@ -88,6 +90,7 @@ class ServiceTests(unittest.TestCase):
             self.etc,
             runner=self.runner,
             wall_time=lambda: float(self.now),
+            sys_root=self.sys_root,
             ufw_state_path=self.state_path,
             ufw_trusted_uid=os.geteuid() if trusted_uid is None else trusted_uid,
         ).collect(tunnel_present=False)
@@ -220,7 +223,7 @@ class ServiceTests(unittest.TestCase):
 
         values = self.collect()
         self.assertEqual(values["service_fortivpn"], "off")
-        self.assertEqual(values["service_numberpad"], "ok")
+        self.assertEqual(values["service_numberpad"], "unknown")
         self.assertEqual(values["service_ntfy"], "ok")
         self.assertEqual(values["service_monitors"], "na")
         serialized = json.dumps(values)
@@ -237,7 +240,7 @@ class ServiceTests(unittest.TestCase):
             self.proc, self.etc, runner=absent_units,
             ufw_state_path=self.state_path,
         ).collect(False)
-        for name in ("fortivpn", "numberpad", "ntfy", "monitors"):
+        for name in ("fortivpn", "ntfy", "monitors"):
             self.assertEqual(values[f"service_{name}"], "na")
             self.assertEqual(values[f"service_{name}_source_state"], "not_applicable")
             self.assertEqual(values[f"service_{name}_last_success_epoch"], 0)
@@ -250,6 +253,55 @@ class ServiceTests(unittest.TestCase):
         values = self.collect()
         self.assertEqual(values["service_monitors"], "ok")
 
+    def test_ssh_state_is_read_only_and_not_guessed_from_vpn(self) -> None:
+        for active_state, expected in (("active", "ok"), ("inactive", "off")):
+            with self.subTest(active_state=active_state):
+                def units(args, **kwargs):
+                    return subprocess.CompletedProcess(
+                        args, 0, "Id=ssh.service\nLoadState=loaded\n"
+                        f"ActiveState={active_state}\n\n", "",
+                    )
+                values = ServiceCollector(
+                    self.proc, self.etc, runner=units,
+                    sys_root=self.sys_root,
+                    ufw_state_path=self.state_path,
+                ).collect(False)
+                self.assertEqual(values["service_ssh"], expected)
+
+        values = self.collect()
+        self.assertEqual(values["service_ssh"], "na")
+        self.assertEqual(values["service_numberpad"], "unknown")
+
+    def test_numlock_led_state_on_off_missing_and_conflict(self) -> None:
+        keyboard = self.sys_root / "class/leds/input0::numlock"
+        keyboard.mkdir(parents=True)
+        for value, expected, detail in (
+            ("1", "ok", "numlock_led_on"),
+            ("0", "off", "numlock_led_off"),
+        ):
+            with self.subTest(value=value):
+                (keyboard / "brightness").write_text(value, encoding="ascii")
+                collected = self.collect()
+                self.assertEqual(collected["service_numberpad"], expected)
+                self.assertEqual(collected["service_numberpad_detail"], detail)
+                self.assertEqual(collected["service_numberpad_confidence"], "high")
+        (keyboard / "brightness").write_text("1", encoding="ascii")
+        other = self.sys_root / "class/leds/input1::numlock"
+        other.mkdir()
+        (other / "brightness").write_text("0", encoding="ascii")
+        self.assertEqual(self.collect()["service_numberpad_detail"], "numlock_led_conflict")
+        (other / "brightness").unlink()
+        self.assertEqual(self.collect()["service_numberpad"], "unknown")
+        (other / "brightness").write_text("1", encoding="ascii")
+        (keyboard / "brightness").unlink()
+        (other / "brightness").unlink()
+        self.assertEqual(self.collect()["service_numberpad_detail"], "numlock_led_unreadable")
+
+    def test_numlock_led_absent_does_not_mean_keypad_absent(self) -> None:
+        values = self.collect()
+        self.assertEqual(values["service_numberpad"], "unknown")
+        self.assertEqual(values["service_numberpad_detail"], "numlock_led_unavailable")
+
     def test_missing_sources_never_raise_and_return_unknown(self) -> None:
         missing_etc = self.root / "missing-etc"
 
@@ -261,8 +313,9 @@ class ServiceTests(unittest.TestCase):
             missing_etc,
             runner=timeout,
             ufw_state_path=self.root / "missing-run" / "ufw-status.json",
+            sys_root=self.sys_root,
         ).collect(False)
-        for name in ("ufw", "fortivpn", "numberpad", "ntfy", "monitors"):
+        for name in ("ufw", "ssh", "fortivpn", "numberpad", "ntfy", "monitors"):
             self.assertEqual(values[f"service_{name}"], "unknown")
 
 

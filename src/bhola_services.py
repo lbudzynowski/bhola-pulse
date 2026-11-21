@@ -86,7 +86,8 @@ def read_unit_states(
     timeout: float = 2.0,
 ) -> dict[str, UnitState]:
     units = [
-        "asus_touchpad_numpad.service",
+        "ssh.service",
+        "sshd.service",
         "ntfy-flush.service",
         "ntfy-flush.timer",
     ]
@@ -253,6 +254,29 @@ def _contains(labels: set[str], candidates: tuple[str, ...]) -> bool:
     return any(label in candidates for label in labels)
 
 
+def _read_numlock_led_state(sys_root: Path) -> tuple[str, str, str]:
+    """Read the current keyboard Num Lock LED; never toggle or guess its state."""
+    leds = sorted((sys_root / "class/leds").glob("*::numlock"))
+    if not leds:
+        return "unknown", "low", "numlock_led_unavailable"
+
+    states: set[bool] = set()
+    for led in leds:
+        try:
+            brightness = int((led / "brightness").read_text(encoding="ascii").strip())
+        except (OSError, ValueError):
+            return "unknown", "low", "numlock_led_unreadable"
+        if brightness < 0:
+            return "unknown", "low", "numlock_led_invalid"
+        states.add(brightness > 0)
+    if len(states) != 1:
+        return "unknown", "low", "numlock_led_conflict"
+    return (
+        ("ok", "high", "numlock_led_on") if True in states
+        else ("off", "high", "numlock_led_off")
+    )
+
+
 class ServiceCollector:
     def __init__(
         self,
@@ -261,12 +285,14 @@ class ServiceCollector:
         *,
         runner: CommandRunner = subprocess.run,
         wall_time: Callable[[], float] = time.time,
+        sys_root: Path = Path("/sys"),
         ufw_state_path: Path = UFW_STATE_PATH,
         ufw_trusted_uid: int = 0,
         ufw_stale_seconds: int = UFW_STATE_STALE_SECONDS,
     ) -> None:
         self.proc_root = proc_root
         self.etc_root = etc_root
+        self.sys_root = sys_root
         self.runner = runner
         self.wall_time = wall_time
         self.ufw_state_path = ufw_state_path
@@ -279,6 +305,20 @@ class ServiceCollector:
         units = unit_result or {}
         units_available = unit_result is not None
         now = int(self.wall_time())
+
+        # SSH is an opt-in server on a workstation: inspect it but never start it.
+        ssh_units = [
+            unit for name in ("ssh.service", "sshd.service")
+            if (unit := units.get(name)) is not None and unit.loaded
+        ]
+        if any(unit.active == "active" for unit in ssh_units):
+            ssh_status, ssh_confidence, ssh_detail = "ok", "high", "unit_active"
+        elif ssh_units:
+            ssh_status, ssh_confidence, ssh_detail = "off", "high", "unit_inactive"
+        elif units_available:
+            ssh_status, ssh_confidence, ssh_detail = "na", "medium", "no_ssh_unit"
+        else:
+            ssh_status, ssh_confidence, ssh_detail = "unknown", "low", "unit_probe_unavailable"
 
         forti_process = _contains(
             labels,
@@ -355,20 +395,8 @@ class ServiceCollector:
                     )
                     ufw_observed = 0
 
-        numberpad_process = "asus_touchpad.py" in labels
-        numberpad_unit = units.get("asus_touchpad_numpad.service")
-        numberpad_active = bool(numberpad_unit and numberpad_unit.active == "active")
-        if numberpad_process and numberpad_active:
-            numberpad_status, numberpad_confidence, numberpad_detail = "ok", "high", "process_and_unit"
-        elif numberpad_process or numberpad_active:
-            numberpad_status, numberpad_confidence, numberpad_detail = "degraded", "medium", "partial_signal"
-        elif numberpad_unit and numberpad_unit.loaded:
-            numberpad_status, numberpad_confidence, numberpad_detail = "off", "high", "unit_inactive"
-        else:
-            numberpad_status, numberpad_confidence, numberpad_detail = (
-                ("na", "medium", "no_detected_asus_numberpad")
-                if units_available else ("unknown", "low", "unit_probe_unavailable")
-            )
+        # Physical Dell keypad: keyboard Num Lock LED state, not ASUS touchpad software.
+        numberpad_status, numberpad_confidence, numberpad_detail = _read_numlock_led_state(self.sys_root)
 
         ntfy_process = "ntfy" in labels
         ntfy_timer = units.get("ntfy-flush.timer")
@@ -409,6 +437,9 @@ class ServiceCollector:
             "service_ufw_runtime": ufw_runtime,
             "service_ufw_detail": ufw_detail,
             "service_ufw_confidence": ufw_confidence,
+            "service_ssh": ssh_status,
+            "service_ssh_detail": ssh_detail,
+            "service_ssh_confidence": ssh_confidence,
             "service_fortivpn": forti_status,
             "service_fortivpn_process": forti_process,
             "service_fortivpn_tunnel": tunnel_present,
@@ -430,7 +461,7 @@ class ServiceCollector:
         values["service_ufw_source_state"] = (
             "fresh" if ufw_observed else ("stale" if ufw_detail == "probe_stale" else "unavailable")
         )
-        for name in ("ufw", "fortivpn", "numberpad", "ntfy", "monitors"):
+        for name in ("ufw", "ssh", "fortivpn", "numberpad", "ntfy", "monitors"):
             if name == "ufw":
                 continue
             status = str(values[f"service_{name}"])

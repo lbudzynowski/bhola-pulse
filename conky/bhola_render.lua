@@ -409,8 +409,8 @@ end
 local function draw_status_grid(cr, origin_y, metrics, alpha, animation_time)
     section_header(cr, origin_y, "STATUS GRID", "03 / LOCAL", alpha, metrics)
     draw_status(cr, 34, origin_y + 62, "UFW", metrics.service_ufw, alpha, animation_time)
-    draw_status(cr, 196, origin_y + 62, "FORTIVPN", metrics.service_fortivpn, alpha, animation_time)
-    draw_status(cr, 34, origin_y + 116, "NUMBERPAD", metrics.service_numberpad, alpha, animation_time)
+    draw_status(cr, 196, origin_y + 62, "SSH", metrics.service_ssh, alpha, animation_time)
+    draw_status(cr, 34, origin_y + 116, "NUM LOCK", metrics.service_numberpad, alpha, animation_time)
     draw_status(cr, 196, origin_y + 116, "NTFY", metrics.service_ntfy, alpha, animation_time)
     draw_status(cr, 34, origin_y + 170, "LOCAL MONITORS", metrics.service_monitors, alpha, animation_time)
 
@@ -474,9 +474,9 @@ local function draw_network_services(cr, origin_y, metrics, alpha, animation_tim
     draw_history(cr, download_history, x, y, width, height, maximum, colors.cyan, alpha)
     draw_history(cr, upload_history, x, y, width, height, maximum, colors.purple, alpha)
 
-    draw_compact_status(cr, 34, origin_y + 239, "VPN", metrics.service_fortivpn, alpha, animation_time)
+    draw_compact_status(cr, 34, origin_y + 239, "SSH", metrics.service_ssh, alpha, animation_time)
     draw_compact_status(cr, 136, origin_y + 239, "UFW", metrics.service_ufw, alpha, animation_time)
-    draw_compact_status(cr, 238, origin_y + 239, "PAD", metrics.service_numberpad, alpha, animation_time)
+    draw_compact_status(cr, 238, origin_y + 239, "NUM", metrics.service_numberpad, alpha, animation_time)
     draw_compact_status(cr, 34, origin_y + 263, "NTFY", metrics.service_ntfy, alpha, animation_time)
     draw_compact_status(cr, 172, origin_y + 263, "MONITORS", metrics.service_monitors, alpha, animation_time)
 end
@@ -500,7 +500,7 @@ end
 
 local function ticker_messages(metrics)
     local service_summary = string.format(
-        "UFW %s · NUMBERPAD %s · NTFY %s",
+        "UFW %s · NUMLOCK %s · NTFY %s",
         status_label(metrics.service_ufw),
         status_label(metrics.service_numberpad),
         status_label(metrics.service_ntfy)
@@ -518,7 +518,7 @@ local function ticker_messages(metrics)
         service_summary,
         network_summary,
         "ROUTE " .. status_label(metrics.network_route_status) .. " · GATEWAY " .. status_label(metrics.network_gateway_status),
-        "DNS " .. status_label(metrics.network_dns_status) .. " · HTTPS " .. status_label(metrics.network_https_status) .. " · VPN " .. status_label(metrics.service_fortivpn),
+        "DNS " .. status_label(metrics.network_dns_status) .. " · HTTPS " .. status_label(metrics.network_https_status) .. " · SSH " .. status_label(metrics.service_ssh),
         "NET ↓ " .. format_rate(metrics.network_download_bytes_per_second) .. " · ↑ " .. format_rate(metrics.network_upload_bytes_per_second),
         "POWER " .. string.upper(metrics.power_source or "unknown") .. " · BATTERY " .. (metrics.battery_percent == nil and "N/A" or string.format("%.0f%%", metrics.battery_percent)),
     }

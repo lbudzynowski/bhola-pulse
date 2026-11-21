@@ -129,6 +129,7 @@ class CollectorTests(unittest.TestCase):
             )
             services = collectors.services()
             self.assertEqual(services["service_ufw"], "unknown")
+            self.assertEqual(services["service_ssh"], "unknown")
             self.assertEqual(services["service_fortivpn"], "unknown")
             self.assertEqual(services["service_numberpad"], "unknown")
             self.assertEqual(services["service_ntfy"], "unknown")
