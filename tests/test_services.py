@@ -37,6 +37,8 @@ class ServiceTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.proc = self.root / "proc"
         self.etc = self.root / "etc"
+        self.sys_root = self.root / "sys"
+        self.sys_root.mkdir()
         self.runtime = self.root / "run" / "bhola-pulse"
         self.proc.mkdir()
         (self.etc / "ufw").mkdir(parents=True)
@@ -88,6 +90,7 @@ class ServiceTests(unittest.TestCase):
             self.etc,
             runner=self.runner,
             wall_time=lambda: float(self.now),
+            sys_root=self.sys_root,
             ufw_state_path=self.state_path,
             ufw_trusted_uid=os.geteuid() if trusted_uid is None else trusted_uid,
         ).collect(tunnel_present=False)
@@ -250,6 +253,53 @@ class ServiceTests(unittest.TestCase):
         values = self.collect()
         self.assertEqual(values["service_monitors"], "ok")
 
+    def test_ssh_state_is_read_only_and_not_guessed_from_vpn(self) -> None:
+        for active_state, expected in (("active", "ok"), ("inactive", "off")):
+            with self.subTest(active_state=active_state):
+                def units(args, **kwargs):
+                    return subprocess.CompletedProcess(
+                        args, 0, "Id=ssh.service\nLoadState=loaded\n"
+                        f"ActiveState={active_state}\n\n", "",
+                    )
+                values = ServiceCollector(
+                    self.proc, self.etc, runner=units,
+                    sys_root=self.sys_root,
+                    ufw_state_path=self.state_path,
+                ).collect(False)
+                self.assertEqual(values["service_ssh"], expected)
+
+        values = self.collect()
+        self.assertEqual(values["service_ssh"], "na")
+        self.assertEqual(values["service_bluetooth"], "na")
+
+    def test_bluetooth_controller_reports_only_verified_power_state(self) -> None:
+        adapter = self.sys_root / "class/bluetooth/hci0"
+        adapter.mkdir(parents=True)
+        for powered, expected in (("yes", "ok"), ("no", "off")):
+            with self.subTest(powered=powered):
+                def runner(args, **kwargs):
+                    if args[0] == "bluetoothctl":
+                        return subprocess.CompletedProcess(
+                            args, 0, f"Controller TEST\n Powered: {powered}\n", ""
+                        )
+                    return self.runner(args, **kwargs)
+                values = ServiceCollector(
+                    self.proc, self.etc, runner=runner,
+                    sys_root=self.sys_root,
+                    ufw_state_path=self.state_path,
+                ).collect(False)
+                self.assertEqual(values["service_bluetooth"], expected)
+        def fails(args, **kwargs):
+            if args[0] == "bluetoothctl":
+                raise subprocess.TimeoutExpired(args, 2)
+            return self.runner(args, **kwargs)
+        values = ServiceCollector(
+            self.proc, self.etc, runner=fails,
+            sys_root=self.sys_root,
+            ufw_state_path=self.state_path,
+        ).collect(False)
+        self.assertEqual(values["service_bluetooth"], "unknown")
+
     def test_missing_sources_never_raise_and_return_unknown(self) -> None:
         missing_etc = self.root / "missing-etc"
 
@@ -261,8 +311,9 @@ class ServiceTests(unittest.TestCase):
             missing_etc,
             runner=timeout,
             ufw_state_path=self.root / "missing-run" / "ufw-status.json",
+            sys_root=self.sys_root,
         ).collect(False)
-        for name in ("ufw", "fortivpn", "numberpad", "ntfy", "monitors"):
+        for name in ("ufw", "ssh", "fortivpn", "numberpad", "ntfy", "monitors"):
             self.assertEqual(values[f"service_{name}"], "unknown")
 
 

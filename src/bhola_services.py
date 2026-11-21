@@ -86,6 +86,8 @@ def read_unit_states(
     timeout: float = 2.0,
 ) -> dict[str, UnitState]:
     units = [
+        "ssh.service",
+        "sshd.service",
         "asus_touchpad_numpad.service",
         "ntfy-flush.service",
         "ntfy-flush.timer",
@@ -261,12 +263,14 @@ class ServiceCollector:
         *,
         runner: CommandRunner = subprocess.run,
         wall_time: Callable[[], float] = time.time,
+        sys_root: Path = Path("/sys"),
         ufw_state_path: Path = UFW_STATE_PATH,
         ufw_trusted_uid: int = 0,
         ufw_stale_seconds: int = UFW_STATE_STALE_SECONDS,
     ) -> None:
         self.proc_root = proc_root
         self.etc_root = etc_root
+        self.sys_root = sys_root
         self.runner = runner
         self.wall_time = wall_time
         self.ufw_state_path = ufw_state_path
@@ -279,6 +283,56 @@ class ServiceCollector:
         units = unit_result or {}
         units_available = unit_result is not None
         now = int(self.wall_time())
+
+        # SSH is an opt-in server on a workstation: inspect it but never start it.
+        ssh_units = [
+            unit for name in ("ssh.service", "sshd.service")
+            if (unit := units.get(name)) is not None and unit.loaded
+        ]
+        if any(unit.active == "active" for unit in ssh_units):
+            ssh_status, ssh_confidence, ssh_detail = "ok", "high", "unit_active"
+        elif ssh_units:
+            ssh_status, ssh_confidence, ssh_detail = "off", "high", "unit_inactive"
+        elif units_available:
+            ssh_status, ssh_confidence, ssh_detail = "na", "medium", "no_ssh_unit"
+        else:
+            ssh_status, ssh_confidence, ssh_detail = "unknown", "low", "unit_probe_unavailable"
+
+        # A controller's existence is not enough to call Bluetooth ACTIVE.
+        adapters = list((self.sys_root / "class/bluetooth").glob("hci[0-9]*"))
+        if not adapters:
+            bluetooth_status, bluetooth_confidence, bluetooth_detail = (
+                "na", "high", "no_bluetooth_controller"
+            )
+        else:
+            try:
+                bluetooth_reply = self.runner(
+                    ["bluetoothctl", "show"],
+                    check=False, capture_output=True, text=True, timeout=2.0,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                bluetooth_reply = None
+            if bluetooth_reply is None or bluetooth_reply.returncode != 0:
+                bluetooth_status, bluetooth_confidence, bluetooth_detail = (
+                    "unknown", "low", "controller_probe_unavailable"
+                )
+            else:
+                powered = re.search(
+                    r"(?mi)^\s*Powered:\s*(yes|no)\s*$",
+                    bluetooth_reply.stdout or "",
+                )
+                if powered and powered.group(1).lower() == "yes":
+                    bluetooth_status, bluetooth_confidence, bluetooth_detail = (
+                        "ok", "high", "controller_powered"
+                    )
+                elif powered:
+                    bluetooth_status, bluetooth_confidence, bluetooth_detail = (
+                        "off", "high", "controller_not_powered"
+                    )
+                else:
+                    bluetooth_status, bluetooth_confidence, bluetooth_detail = (
+                        "unknown", "low", "controller_state_unconfirmed"
+                    )
 
         forti_process = _contains(
             labels,
@@ -409,6 +463,12 @@ class ServiceCollector:
             "service_ufw_runtime": ufw_runtime,
             "service_ufw_detail": ufw_detail,
             "service_ufw_confidence": ufw_confidence,
+            "service_ssh": ssh_status,
+            "service_ssh_detail": ssh_detail,
+            "service_ssh_confidence": ssh_confidence,
+            "service_bluetooth": bluetooth_status,
+            "service_bluetooth_detail": bluetooth_detail,
+            "service_bluetooth_confidence": bluetooth_confidence,
             "service_fortivpn": forti_status,
             "service_fortivpn_process": forti_process,
             "service_fortivpn_tunnel": tunnel_present,
@@ -430,7 +490,7 @@ class ServiceCollector:
         values["service_ufw_source_state"] = (
             "fresh" if ufw_observed else ("stale" if ufw_detail == "probe_stale" else "unavailable")
         )
-        for name in ("ufw", "fortivpn", "numberpad", "ntfy", "monitors"):
+        for name in ("ufw", "ssh", "bluetooth", "fortivpn", "numberpad", "ntfy", "monitors"):
             if name == "ufw":
                 continue
             status = str(values[f"service_{name}"])

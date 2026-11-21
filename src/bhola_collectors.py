@@ -173,6 +173,7 @@ class SystemCollectors:
             etc_root,
             runner=command_runner,
             wall_time=wall_time,
+            sys_root=sys_root,
         )
 
     def fast(self) -> dict[str, object]:
