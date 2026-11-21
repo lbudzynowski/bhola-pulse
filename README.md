@@ -10,9 +10,10 @@ provider, one atomic JSON cache, and transparent Conky/Lua/Cairo renderers.
 
 **Hardware scope:** This is **not an ASUS-only package**. Core Linux
 telemetry can run on other manufacturers' hardware, but some fixed status
-indicators intentionally detect specific optional software (including the
-ASUS Touchpad NumberPad helper). Those optional integrations are **not**
-installation requirements; absent signals can appear as `UNKNOWN`. See
+indicators detect optional local services. In the **0.1.6 test candidate**
+the numeric keyboard field reads the real **Num Lock LED**, not the
+ASUS Touchpad NumberPad helper. Those integrations are **not** installation
+requirements; an unavailable sensor can still appear as `UNKNOWN`. See
 [hardware requirements, optional integrations and known limitations](docs/hardware-and-optional-integrations.md)
 before deploying to another computer.
 
@@ -43,9 +44,10 @@ active at startup:
 
 - **System Pulse** — CPU, RAM, load, uptime, temperatures, power, battery, and
   three large meters;
-- **Status Grid** — local indicators for UFW, FortiVPN, ASUS NumberPad,
-  locally detected ntfy and known monitoring processes. These are
-  **optional**; some may remain `UNKNOWN` on other hardware.
+- **Status Grid** — local indicators for UFW, SSH server, keyboard Num Lock,
+  locally detected ntfy and known monitoring processes (in 0.1.6); earlier
+  releases used FortiVPN and ASUS Touchpad NumberPad. Unavailable sensors
+  are not falsely reported ACTIVE.
 - **System Activity** — aggregate disk read/write activity and top-process data;
 - **Network & Services** — aggregate RX/TX, route presence, bounded gateway,
   Internet, DNS, HTTPS, and masked public-address probes.
@@ -107,7 +109,7 @@ The saved preference is stored in
 `${XDG_STATE_HOME:-~/.local/state}/bhola-pulse/dashboard.json`. Neither path is
 removed when the Debian package is uninstalled.
 
-## Monitor selection (0.1.5 test candidate)
+## Monitor selection (0.1.5 and 0.1.6 test candidates)
 
 By default Bhola Pulse starts on **all active XRandR monitors**. Identify the
 indices on the current desktop (number before each colon):
@@ -136,7 +138,7 @@ the saved selection, then `all`. An unavailable head triggers an error
 rather than silently switching to all screens. Selection is performed on
 startup; after monitor hotplug restart the dashboard.
 
-## Optional status meanings (0.1.5 test candidate)
+## Optional status meanings (0.1.5 and 0.1.6 test candidates)
 
 - An **undetected local** ASUS NumberPad, Fortinet, ntfy or local monitoring
   integration is labeled `N/A`, not `ACTIVE`. This **does not** verify or
@@ -153,8 +155,25 @@ startup; after monitor hotplug restart the dashboard.
 - Intel GPU temperature `N/A` is a separate sensor-discovery problem,
   not falsely converted into a working temperature sensor.
 
-This PR-only candidate supersedes the locally tested 0.1.4-1; it has not
-been published to GitHub Releases or a PPA.
+### 0.1.6: Dell physical Num Lock and SSH instead of FortiVPN
+
+The fixed `NUMBERPAD` tile used to check an ASUS touchpad daemon. On
+Haiyan, a Dell with a **physical numeric keypad**, 0.1.6 instead displays
+`NUM LOCK` and reads Linux `/sys/class/leds/*::numlock/brightness`:
+`ACTIVE` means the LED reports Num Lock **on**, `OFF` means **off**,
+`UNKNOWN` means no readable LED is exposed or different keyboards report
+conflicting states. It never toggles Num Lock. The JSON field retains the
+legacy name `service_numberpad` for renderer/cache compatibility.
+
+`FORTIVPN` is replaced visually with **SSH**, based on the actual systemd
+`ssh.service` / `sshd.service` state. SSH is **not** installed, enabled,
+started or exposed by the dashboard. An absent SSH server shows N/A.
+
+`NTFY` remains a local-helper indicator; do **not** confuse N/A with remote
+Coringa server failure. Real ntfy notification delivery is separate work:
+no URL/token has been verified for this host. Local Beszel already shows ACTIVE.
+The 0.1.6 test build supersedes locally tested 0.1.5 and is not published
+to GitHub Releases or a PPA.
 
 ## Install
 

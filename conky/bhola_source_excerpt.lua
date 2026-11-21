@@ -1,4 +1,7 @@
 local source = [=[
+}
+
+
 def create_scheduler(collectors: SystemCollectors, start: float) -> SourceScheduler:
     sources = [
         ScheduledSource(
@@ -187,7 +190,7 @@ def create_probe_manager(
 def _refresh_local_ages(payload: dict[str, object], wall_epoch: int) -> None:
     prefixes = ["network_route"] + [
         f"service_{name}"
-        for name in ("ufw", "fortivpn", "numberpad", "ntfy", "monitors")
+        for name in ("ufw", "ssh", "fortivpn", "numberpad", "ntfy", "monitors")
     ]
     for prefix in prefixes:
         last_success = payload.get(f"{prefix}_last_success_epoch")

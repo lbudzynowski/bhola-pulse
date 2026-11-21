@@ -1,3 +1,13 @@
+bhola-pulse (0.1.6-1) UNRELEASED; urgency=medium
+
+  * Display the real local Num Lock LED state on physical keyboards, not ASUS-specific NumberPad software.
+  * Replace the optional FortiVPN tile with the observed local SSH service state.
+  * Preserve 0.1.5 monitor selection and updated truthful APT/Beszel indicators.
+  * Never enable SSH, change Num Lock state, or install optional services.
+  * PR-only test build; no merge, release or PPA upload.
+
+ -- Łukasz Budzynowski <lbudzynowski@gmail.com>  Sat, 21 Nov 2026 12:00:00 +0100
+
 bhola-pulse (0.1.5-1) UNRELEASED; urgency=medium
 
   * Allow a one-shot or persisted list of selected XRandR monitors.

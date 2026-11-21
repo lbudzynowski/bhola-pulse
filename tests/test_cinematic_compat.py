@@ -27,7 +27,7 @@ class CombinedCinematicCairoCompatibilityTests(unittest.TestCase):
         styles = (ROOT / "src/bhola_style.py").read_text(encoding="utf-8")
         self.assertIn("modern|nerd|cinematic", launcher)
         self.assertIn('VALID_STYLES = ("modern", "nerd", "cinematic")', styles)
-        self.assertEqual((ROOT / "VERSION").read_text().strip(), "0.1.5")
+        self.assertEqual((ROOT / "VERSION").read_text().strip(), "0.1.6")
 
 
 if __name__ == "__main__":
