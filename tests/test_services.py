@@ -222,10 +222,33 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(values["service_fortivpn"], "off")
         self.assertEqual(values["service_numberpad"], "ok")
         self.assertEqual(values["service_ntfy"], "ok")
-        self.assertEqual(values["service_monitors"], "unknown")
+        self.assertEqual(values["service_monitors"], "na")
         serialized = json.dumps(values)
         self.assertNotIn("/private", serialized)
         self.assertNotIn("asus_touchpad.py", serialized)
+
+    def test_missing_local_optional_services_return_na_not_ok(self) -> None:
+        def absent_units(args, **_kwargs):
+            return subprocess.CompletedProcess(
+                args, 0, "Id=ntfy-flush.service\nLoadState=not-found\n", ""
+            )
+
+        values = ServiceCollector(
+            self.proc, self.etc, runner=absent_units,
+            ufw_state_path=self.state_path,
+        ).collect(False)
+        for name in ("fortivpn", "numberpad", "ntfy", "monitors"):
+            self.assertEqual(values[f"service_{name}"], "na")
+            self.assertEqual(values[f"service_{name}_source_state"], "not_applicable")
+            self.assertEqual(values[f"service_{name}_last_success_epoch"], 0)
+
+    def test_local_beszel_agent_counts_as_known_monitor(self) -> None:
+        entry = self.proc / "100"
+        entry.mkdir()
+        (entry / "comm").write_text("beszel-agent\n", encoding="utf-8")
+        (entry / "cmdline").write_bytes(b"beszel-agent\0")
+        values = self.collect()
+        self.assertEqual(values["service_monitors"], "ok")
 
     def test_missing_sources_never_raise_and_return_unknown(self) -> None:
         missing_etc = self.root / "missing-etc"

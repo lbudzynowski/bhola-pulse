@@ -61,7 +61,7 @@ def _process_labels(proc_root: Path) -> set[str]:
     return labels
 
 
-def _parse_unit_blocks(output: str) -> dict[str, UnitState]:
+def _parse_unit_blocks(output: str) -> dict[str, UnitState] | None:
     result: dict[str, UnitState] = {}
     for block in re.split(r"\n\s*\n", output.strip()):
         values: dict[str, str] = {}
@@ -105,10 +105,11 @@ def read_unit_states(
             timeout=timeout,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return {}
-    if completed.returncode != 0:
-        return {}
-    return _parse_unit_blocks(completed.stdout or "")
+        return None
+    units = _parse_unit_blocks(completed.stdout or "")
+    if completed.returncode != 0 and not units:
+        return None
+    return units
 
 
 def _ufw_config(etc_root: Path) -> str:
@@ -274,7 +275,9 @@ class ServiceCollector:
 
     def collect(self, tunnel_present: bool) -> dict[str, object]:
         labels = _process_labels(self.proc_root)
-        units = read_unit_states(self.runner)
+        unit_result = read_unit_states(self.runner)
+        units = unit_result or {}
+        units_available = unit_result is not None
         now = int(self.wall_time())
 
         forti_process = _contains(
@@ -289,7 +292,10 @@ class ServiceCollector:
         elif forti_indicator:
             forti_status, forti_confidence, forti_detail = "off", "medium", "indicator_idle"
         else:
-            forti_status, forti_confidence, forti_detail = "unknown", "low", "no_signal"
+            forti_status, forti_confidence, forti_detail = (
+                ("na", "medium", "no_detected_local_fortinet")
+                if units_available else ("unknown", "low", "unit_probe_unavailable")
+            )
 
         ufw_config = _ufw_config(self.etc_root)
         if ufw_config == "disabled":
@@ -359,7 +365,10 @@ class ServiceCollector:
         elif numberpad_unit and numberpad_unit.loaded:
             numberpad_status, numberpad_confidence, numberpad_detail = "off", "high", "unit_inactive"
         else:
-            numberpad_status, numberpad_confidence, numberpad_detail = "unknown", "low", "no_signal"
+            numberpad_status, numberpad_confidence, numberpad_detail = (
+                ("na", "medium", "no_detected_asus_numberpad")
+                if units_available else ("unknown", "low", "unit_probe_unavailable")
+            )
 
         ntfy_process = "ntfy" in labels
         ntfy_timer = units.get("ntfy-flush.timer")
@@ -371,7 +380,10 @@ class ServiceCollector:
         elif (ntfy_timer and ntfy_timer.loaded) or (ntfy_service and ntfy_service.loaded):
             ntfy_status, ntfy_confidence, ntfy_detail = "off", "high", "configured_inactive"
         else:
-            ntfy_status, ntfy_confidence, ntfy_detail = "unknown", "low", "no_signal"
+            ntfy_status, ntfy_confidence, ntfy_detail = (
+                ("na", "medium", "no_detected_local_ntfy")
+                if units_available else ("unknown", "low", "unit_probe_unavailable")
+            )
 
         monitor_markers = (
             "uptime-kuma",
@@ -380,12 +392,16 @@ class ServiceCollector:
             "local-monitor",
             "url-monitor",
             "monitor-url",
+            "beszel-agent",
         )
         monitor_process = _contains(labels, monitor_markers)
         if monitor_process:
             monitor_status, monitor_confidence, monitor_detail = "ok", "medium", "process_active"
         else:
-            monitor_status, monitor_confidence, monitor_detail = "unknown", "low", "no_known_signal"
+            monitor_status, monitor_confidence, monitor_detail = (
+                ("na", "medium", "no_detected_local_monitor")
+                if units_available else ("unknown", "low", "unit_probe_unavailable")
+            )
 
         values: dict[str, object] = {
             "service_ufw": ufw_status,
@@ -418,7 +434,10 @@ class ServiceCollector:
             if name == "ufw":
                 continue
             status = str(values[f"service_{name}"])
-            values[f"service_{name}_last_success_epoch"] = now if status != "unknown" else 0
-            values[f"service_{name}_age_seconds"] = 0 if status != "unknown" else None
-            values[f"service_{name}_source_state"] = "fresh" if status != "unknown" else "unavailable"
+            confirmed = status not in {"unknown", "na"}
+            values[f"service_{name}_last_success_epoch"] = now if confirmed else 0
+            values[f"service_{name}_age_seconds"] = 0 if confirmed else None
+            values[f"service_{name}_source_state"] = (
+                "fresh" if confirmed else ("not_applicable" if status == "na" else "unavailable")
+            )
         return values
