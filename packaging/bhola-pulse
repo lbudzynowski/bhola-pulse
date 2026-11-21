@@ -11,9 +11,9 @@ state_file=${BHOLA_STATE_FILE:-$state_home/bhola-pulse/dashboard.json}
 usage() {
     cat <<'EOF'
 Usage:
-  bhola-pulse [--check] [--style modern|nerd]
+  bhola-pulse [--check] [--style modern|nerd|cinematic]
   bhola-pulse config show
-  bhola-pulse config set modern|nerd
+  bhola-pulse config set modern|nerd|cinematic
   bhola-pulse config reset
   bhola-pulse --version
 
@@ -22,7 +22,7 @@ EOF
 }
 
 valid_style() {
-    [[ $1 == modern || $1 == nerd ]]
+    [[ $1 == modern || $1 == nerd || $1 == cinematic ]]
 }
 
 show_version() {
@@ -37,7 +37,7 @@ save_style() {
     local style=$1
     local temporary_file
     if ! valid_style "$style"; then
-        printf 'Invalid style %q; expected modern or nerd.\n' "$style" >&2
+        printf 'Invalid style %q; expected modern, nerd, or cinematic.\n' "$style" >&2
         exit 2
     fi
     umask 077
@@ -59,7 +59,7 @@ configured_style() {
     fi
     IFS= read -r style < "$config_file" || true
     if ! valid_style "$style"; then
-        printf 'Invalid saved style in %s; expected modern or nerd.\n' "$config_file" >&2
+        printf 'Invalid saved style in %s; expected modern, nerd, or cinematic.\n' "$config_file" >&2
         exit 2
     fi
     printf '%s\n' "$style"
@@ -86,7 +86,7 @@ case ${1:-} in
                 fi
                 save_style "$3"
                 ;;
-            modern|nerd)
+            modern|nerd|cinematic)
                 if (($# != 2)); then
                     usage >&2
                     exit 2

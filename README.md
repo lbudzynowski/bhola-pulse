@@ -63,11 +63,25 @@ status points, temperature interpolation, and a moving ticker.
 ASCII bars, fixed NOW/FAST/SLOW/PEAK banks, large character-only CPU/RAM/NVMe
 meters, spinner, status pulses, and a terminal ticker.
 
+`cinematic` is an **optional test-only style**, combining the existing NERD
+renderer with a 4.6-second startup sequence, original ASCII skull during some
+brief glitch bursts, CRT scanlines and dual terminal panels. Its left panel
+types a real excerpt from the local provider code; its right panel displays
+only cache-backed samples and state transitions, not fabricated system events.
+It uses a larger 760×720 canvas and a faster 0.03 s render cadence; on three
+monitors this may produce substantially higher CPU use. Stop it with `Ctrl+C`.
+
+**As of this candidate, cinematic is not part of the public v0.1.2 release.**
+The experimental 0.1.4-1 artifact combines the unmerged Cairo changes from
+[PR #10](https://github.com/lbudzynowski/bhola-pulse/pull/10) with the
+cinematic implementation from [PR #9](https://github.com/lbudzynowski/bhola-pulse/pull/9).
+
 Select a style for one run:
 
 ```bash
 bhola-pulse --style modern
 bhola-pulse --style nerd
+bhola-pulse --style cinematic
 BHOLA_STYLE=nerd bhola-pulse
 ```
 
@@ -75,6 +89,7 @@ Save a user preference:
 
 ```bash
 bhola-pulse config set nerd
+bhola-pulse config set cinematic
 bhola-pulse config show
 bhola-pulse config set modern
 bhola-pulse config reset
@@ -100,6 +115,16 @@ Cairo compatibility issue with Conky 1.22.2 (Ubuntu 26.04);** the separately
 tested 0.1.3 candidate in [PR #10](https://github.com/lbudzynowski/bhola-pulse/pull/10)
 is not yet part of the public release or published PPA. Read the
 [compatibility guide](docs/hardware-and-optional-integrations.md) before installing:
+
+**Testing cinematic on Haiyan?** Obtain only the CI-built candidate from the
+separate development PR; it is not yet in the latest release or apps PPA.
+The downloadable candidate artifact requires a successful CI run and SHA256
+verification. Upgrading an installed 0.1.3 package with
+`sudo apt install ./bhola-pulse_0.1.4-1_all.deb` retains config/state; uninstall
+first is unnecessary. Validate `bhola-pulse --style cinematic` in the actual
+graphical session. You can restore the known-good local 0.1.3-1 file with
+`sudo apt install --allow-downgrades ./bhola-pulse_0.1.3-1_all.deb` from its
+previous download directory.
 
 ```bash
 sha256sum --check SHA256SUMS
@@ -130,7 +155,7 @@ meaning of `UNKNOWN`, `OFF`, and `N/A` are documented in the
 [optional integration matrix](docs/hardware-and-optional-integrations.md).
 
 **Important:** `bhola-pulse --check` does not exercise actual graphical
-Cairo rendering. After installation, visually verify `modern` and `nerd`
+Cairo rendering. After installation, visually verify `modern`, `nerd`, and (if available) `cinematic`
 in the target desktop session and confirm input click-through.
 
 ### Verified UFW status
@@ -176,6 +201,7 @@ Run from the repository:
 ```bash
 ./scripts/run-dev.sh
 ./scripts/run-dev.sh --style nerd
+./scripts/run-dev.sh --style cinematic
 ```
 
 Run all environment-independent checks:
@@ -225,6 +251,8 @@ Missing sensors use neutral gray and `N/A`.
 - `conky/bhola_pulse.lua` — style selection and shared scaled draw hook;
 - `conky/bhola_render.lua` — `modern` renderer;
 - `conky/bhola_render_nerd.lua` — `nerd` renderer;
+- `conky/bhola_render_cinematic.lua` — opt-in cinematic wrapper;
+- `conky/bhola_cinetty_panels.lua` — source auto-typing and cache stream;
 - `src/bhola_provider.py` — provider lifecycle and task composition;
 - `src/bhola_collectors.py` — local Linux telemetry sources;
 - `src/bhola_network.py` — aggregate counters, route discovery, parsers, and
