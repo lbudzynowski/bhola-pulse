@@ -1,3 +1,22 @@
+bhola-pulse (0.1.4-1) UNRELEASED; urgency=medium
+
+  * Offer optional NERD Cinematic with boot animation, terminal panels,
+    bounded glitch bursts and intermittent ASCII skull on all active heads.
+  * Retain the Conky 1.22/1.23 Cairo compatibility adapter from 0.1.3.
+  * Include coverage for cinematic style/packaging and Cairo APIs.
+  * Private test candidate only; no public release or signed PPA upload.
+
+ -- Łukasz Budzynowski <lbudzynowski@gmail.com>  Sat, 21 Nov 2026 11:00:00 +0100
+
+bhola-pulse (0.1.3-1) UNRELEASED; urgency=medium
+
+  * Prefer Conky 1.23+ conky_surface() without freeing a borrowed surface.
+  * Load cairo_xlib separately for Conky 1.22.x rendering compatibility.
+  * Add Lua regressions for both APIs and document the May 2026 change.
+  * Clarify that --check does not execute the live Cairo drawing hook.
+
+ -- Łukasz Budzynowski <lbudzynowski@gmail.com>  Sat, 21 Nov 2026 09:45:00 +0100
+
 bhola-pulse (0.1.2-1) UNRELEASED; urgency=medium
 
   * Add a capability-bounded systemd UFW runtime probe and timer.

@@ -8,7 +8,7 @@ import sys
 from collections.abc import Mapping
 
 
-VALID_STYLES = ("modern", "nerd")
+VALID_STYLES = ("modern", "nerd", "cinematic")
 
 
 def resolve_style(
