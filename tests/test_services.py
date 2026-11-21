@@ -223,7 +223,7 @@ class ServiceTests(unittest.TestCase):
 
         values = self.collect()
         self.assertEqual(values["service_fortivpn"], "off")
-        self.assertEqual(values["service_numberpad"], "ok")
+        self.assertEqual(values["service_numberpad"], "unknown")
         self.assertEqual(values["service_ntfy"], "ok")
         self.assertEqual(values["service_monitors"], "na")
         serialized = json.dumps(values)
@@ -240,7 +240,7 @@ class ServiceTests(unittest.TestCase):
             self.proc, self.etc, runner=absent_units,
             ufw_state_path=self.state_path,
         ).collect(False)
-        for name in ("fortivpn", "numberpad", "ntfy", "monitors"):
+        for name in ("fortivpn", "ntfy", "monitors"):
             self.assertEqual(values[f"service_{name}"], "na")
             self.assertEqual(values[f"service_{name}_source_state"], "not_applicable")
             self.assertEqual(values[f"service_{name}_last_success_epoch"], 0)
@@ -270,35 +270,37 @@ class ServiceTests(unittest.TestCase):
 
         values = self.collect()
         self.assertEqual(values["service_ssh"], "na")
-        self.assertEqual(values["service_bluetooth"], "na")
+        self.assertEqual(values["service_numberpad"], "unknown")
 
-    def test_bluetooth_controller_reports_only_verified_power_state(self) -> None:
-        adapter = self.sys_root / "class/bluetooth/hci0"
-        adapter.mkdir(parents=True)
-        for powered, expected in (("yes", "ok"), ("no", "off")):
-            with self.subTest(powered=powered):
-                def runner(args, **kwargs):
-                    if args[0] == "bluetoothctl":
-                        return subprocess.CompletedProcess(
-                            args, 0, f"Controller TEST\n Powered: {powered}\n", ""
-                        )
-                    return self.runner(args, **kwargs)
-                values = ServiceCollector(
-                    self.proc, self.etc, runner=runner,
-                    sys_root=self.sys_root,
-                    ufw_state_path=self.state_path,
-                ).collect(False)
-                self.assertEqual(values["service_bluetooth"], expected)
-        def fails(args, **kwargs):
-            if args[0] == "bluetoothctl":
-                raise subprocess.TimeoutExpired(args, 2)
-            return self.runner(args, **kwargs)
-        values = ServiceCollector(
-            self.proc, self.etc, runner=fails,
-            sys_root=self.sys_root,
-            ufw_state_path=self.state_path,
-        ).collect(False)
-        self.assertEqual(values["service_bluetooth"], "unknown")
+    def test_numlock_led_state_on_off_missing_and_conflict(self) -> None:
+        keyboard = self.sys_root / "class/leds/input0::numlock"
+        keyboard.mkdir(parents=True)
+        for value, expected, detail in (
+            ("1", "ok", "numlock_led_on"),
+            ("0", "off", "numlock_led_off"),
+        ):
+            with self.subTest(value=value):
+                (keyboard / "brightness").write_text(value, encoding="ascii")
+                collected = self.collect()
+                self.assertEqual(collected["service_numberpad"], expected)
+                self.assertEqual(collected["service_numberpad_detail"], detail)
+                self.assertEqual(collected["service_numberpad_confidence"], "high")
+        (keyboard / "brightness").write_text("1", encoding="ascii")
+        other = self.sys_root / "class/leds/input1::numlock"
+        other.mkdir()
+        (other / "brightness").write_text("0", encoding="ascii")
+        self.assertEqual(self.collect()["service_numberpad_detail"], "numlock_led_conflict")
+        (other / "brightness").unlink()
+        self.assertEqual(self.collect()["service_numberpad"], "unknown")
+        (other / "brightness").write_text("1", encoding="ascii")
+        (keyboard / "brightness").unlink()
+        (other / "brightness").unlink()
+        self.assertEqual(self.collect()["service_numberpad_detail"], "numlock_led_unreadable")
+
+    def test_numlock_led_absent_does_not_mean_keypad_absent(self) -> None:
+        values = self.collect()
+        self.assertEqual(values["service_numberpad"], "unknown")
+        self.assertEqual(values["service_numberpad_detail"], "numlock_led_unavailable")
 
     def test_missing_sources_never_raise_and_return_unknown(self) -> None:
         missing_etc = self.root / "missing-etc"

@@ -88,7 +88,6 @@ def read_unit_states(
     units = [
         "ssh.service",
         "sshd.service",
-        "asus_touchpad_numpad.service",
         "ntfy-flush.service",
         "ntfy-flush.timer",
     ]
@@ -255,6 +254,29 @@ def _contains(labels: set[str], candidates: tuple[str, ...]) -> bool:
     return any(label in candidates for label in labels)
 
 
+def _read_numlock_led_state(sys_root: Path) -> tuple[str, str, str]:
+    """Read the current keyboard Num Lock LED; never toggle or guess its state."""
+    leds = sorted((sys_root / "class/leds").glob("*::numlock"))
+    if not leds:
+        return "unknown", "low", "numlock_led_unavailable"
+
+    states: set[bool] = set()
+    for led in leds:
+        try:
+            brightness = int((led / "brightness").read_text(encoding="ascii").strip())
+        except (OSError, ValueError):
+            return "unknown", "low", "numlock_led_unreadable"
+        if brightness < 0:
+            return "unknown", "low", "numlock_led_invalid"
+        states.add(brightness > 0)
+    if len(states) != 1:
+        return "unknown", "low", "numlock_led_conflict"
+    return (
+        ("ok", "high", "numlock_led_on") if True in states
+        else ("off", "high", "numlock_led_off")
+    )
+
+
 class ServiceCollector:
     def __init__(
         self,
@@ -297,42 +319,6 @@ class ServiceCollector:
             ssh_status, ssh_confidence, ssh_detail = "na", "medium", "no_ssh_unit"
         else:
             ssh_status, ssh_confidence, ssh_detail = "unknown", "low", "unit_probe_unavailable"
-
-        # A controller's existence is not enough to call Bluetooth ACTIVE.
-        adapters = list((self.sys_root / "class/bluetooth").glob("hci[0-9]*"))
-        if not adapters:
-            bluetooth_status, bluetooth_confidence, bluetooth_detail = (
-                "na", "high", "no_bluetooth_controller"
-            )
-        else:
-            try:
-                bluetooth_reply = self.runner(
-                    ["bluetoothctl", "show"],
-                    check=False, capture_output=True, text=True, timeout=2.0,
-                )
-            except (OSError, subprocess.TimeoutExpired):
-                bluetooth_reply = None
-            if bluetooth_reply is None or bluetooth_reply.returncode != 0:
-                bluetooth_status, bluetooth_confidence, bluetooth_detail = (
-                    "unknown", "low", "controller_probe_unavailable"
-                )
-            else:
-                powered = re.search(
-                    r"(?mi)^\s*Powered:\s*(yes|no)\s*$",
-                    bluetooth_reply.stdout or "",
-                )
-                if powered and powered.group(1).lower() == "yes":
-                    bluetooth_status, bluetooth_confidence, bluetooth_detail = (
-                        "ok", "high", "controller_powered"
-                    )
-                elif powered:
-                    bluetooth_status, bluetooth_confidence, bluetooth_detail = (
-                        "off", "high", "controller_not_powered"
-                    )
-                else:
-                    bluetooth_status, bluetooth_confidence, bluetooth_detail = (
-                        "unknown", "low", "controller_state_unconfirmed"
-                    )
 
         forti_process = _contains(
             labels,
@@ -409,20 +395,8 @@ class ServiceCollector:
                     )
                     ufw_observed = 0
 
-        numberpad_process = "asus_touchpad.py" in labels
-        numberpad_unit = units.get("asus_touchpad_numpad.service")
-        numberpad_active = bool(numberpad_unit and numberpad_unit.active == "active")
-        if numberpad_process and numberpad_active:
-            numberpad_status, numberpad_confidence, numberpad_detail = "ok", "high", "process_and_unit"
-        elif numberpad_process or numberpad_active:
-            numberpad_status, numberpad_confidence, numberpad_detail = "degraded", "medium", "partial_signal"
-        elif numberpad_unit and numberpad_unit.loaded:
-            numberpad_status, numberpad_confidence, numberpad_detail = "off", "high", "unit_inactive"
-        else:
-            numberpad_status, numberpad_confidence, numberpad_detail = (
-                ("na", "medium", "no_detected_asus_numberpad")
-                if units_available else ("unknown", "low", "unit_probe_unavailable")
-            )
+        # Physical Dell keypad: keyboard Num Lock LED state, not ASUS touchpad software.
+        numberpad_status, numberpad_confidence, numberpad_detail = _read_numlock_led_state(self.sys_root)
 
         ntfy_process = "ntfy" in labels
         ntfy_timer = units.get("ntfy-flush.timer")
@@ -466,9 +440,6 @@ class ServiceCollector:
             "service_ssh": ssh_status,
             "service_ssh_detail": ssh_detail,
             "service_ssh_confidence": ssh_confidence,
-            "service_bluetooth": bluetooth_status,
-            "service_bluetooth_detail": bluetooth_detail,
-            "service_bluetooth_confidence": bluetooth_confidence,
             "service_fortivpn": forti_status,
             "service_fortivpn_process": forti_process,
             "service_fortivpn_tunnel": tunnel_present,
@@ -490,7 +461,7 @@ class ServiceCollector:
         values["service_ufw_source_state"] = (
             "fresh" if ufw_observed else ("stale" if ufw_detail == "probe_stale" else "unavailable")
         )
-        for name in ("ufw", "ssh", "bluetooth", "fortivpn", "numberpad", "ntfy", "monitors"):
+        for name in ("ufw", "ssh", "fortivpn", "numberpad", "ntfy", "monitors"):
             if name == "ufw":
                 continue
             status = str(values[f"service_{name}"])
