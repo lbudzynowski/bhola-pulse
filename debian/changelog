@@ -1,3 +1,13 @@
+bhola-pulse (0.1.5-1) UNRELEASED; urgency=medium
+
+  * Allow a one-shot or persisted list of selected XRandR monitors.
+  * Differentiate non-detected optional local services from unknown probes.
+  * Recognize Beszel agent; count APT upgrades from existing local indices.
+  * Preserve the tested Conky/Cairo compatibility and cinematic renderer.
+  * PR-only test build: no public release or PPA publication.
+
+ -- Łukasz Budzynowski <lbudzynowski@gmail.com>  Sat, 21 Nov 2026 12:00:00 +0100
+
 bhola-pulse (0.1.4-1) UNRELEASED; urgency=medium
 
   * Offer optional NERD Cinematic with boot animation, terminal panels,

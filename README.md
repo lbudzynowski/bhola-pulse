@@ -107,6 +107,55 @@ The saved preference is stored in
 `${XDG_STATE_HOME:-~/.local/state}/bhola-pulse/dashboard.json`. Neither path is
 removed when the Debian package is uninstalled.
 
+## Monitor selection (0.1.5 test candidate)
+
+By default Bhola Pulse starts on **all active XRandR monitors**. Identify the
+indices on the current desktop (number before each colon):
+
+```bash
+bhola-pulse --list-monitors
+```
+
+Start Cinematic on only one display or a subset:
+
+```bash
+bhola-pulse --style cinematic --monitor 1
+bhola-pulse --style cinematic --monitors 0,2
+```
+
+Or save a choice across runs:
+
+```bash
+bhola-pulse config monitors set 1
+bhola-pulse config monitors show
+bhola-pulse config monitors reset
+```
+
+Precedence: CLI `--monitor`/`--monitors`, then `BHOLA_MONITORS`, then
+the saved selection, then `all`. An unavailable head triggers an error
+rather than silently switching to all screens. Selection is performed on
+startup; after monitor hotplug restart the dashboard.
+
+## Optional status meanings (0.1.5 test candidate)
+
+- An **undetected local** ASUS NumberPad, Fortinet, ntfy or local monitoring
+  integration is labeled `N/A`, not `ACTIVE`. This **does not** verify or
+  certify a remote service or prove that a VPN binary is absent.
+- `UNKNOWN` remains when local service verification itself is unavailable.
+- A locally running Beszel agent is now recognized under `LOCAL MON`.
+  The actual remote Beszel server or ntfy server on Coringa is **not**
+  probed; no service addresses or credentials are guessed.
+- `UPDATES (N)` is the number of upgradable packages from **currently
+  cached APT metadata**, checked at most hourly using the read-only
+  `apt list --upgradable` command. It displays `PENDING` when N > 0
+  or `CURRENT` when N = 0. It never runs `apt update` or upgrades
+  packages. Cached metadata may be stale.
+- Intel GPU temperature `N/A` is a separate sensor-discovery problem,
+  not falsely converted into a working temperature sensor.
+
+This PR-only candidate supersedes the locally tested 0.1.4-1; it has not
+been published to GitHub Releases or a PPA.
+
 ## Install
 
 Download the `.deb` and `SHA256SUMS` from the latest GitHub release, verify the

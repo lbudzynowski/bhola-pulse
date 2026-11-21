@@ -73,6 +73,41 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(counters.read_bytes, 100 * 512)
             self.assertEqual(counters.write_bytes, 200 * 512)
 
+    def test_apt_updates_read_existing_metadata_without_refresh(self) -> None:
+        calls = []
+
+        def two_updates(args, **kwargs):
+            calls.append((args, kwargs))
+            return subprocess.CompletedProcess(args, 0,
+                "Listing... Done\npkg/a 2 amd64 [upgradable from: 1]\n"
+                "pkg2/a 3 amd64 [upgradable from: 2]\n", "")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            collector = SystemCollectors(root, root, root, command_runner=two_updates)
+            self.assertEqual(collector.updates(), {"updates_count": 2, "updates_status": "pending"})
+        self.assertEqual(calls[0][0], ["apt", "list", "--upgradable"])
+        self.assertEqual(calls[0][1]["env"]["LC_ALL"], "C")
+        self.assertEqual(calls[0][1]["timeout"], 6.0)
+
+        def clean(args, **kwargs):
+            return subprocess.CompletedProcess(args, 0, "Listing... Done\n", "")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(
+                SystemCollectors(root, root, root, command_runner=clean).updates(),
+                {"updates_count": 0, "updates_status": "current"},
+            )
+
+        def missing(args, **kwargs):
+            raise FileNotFoundError("apt missing")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(
+                SystemCollectors(root, root, root, command_runner=missing).updates(),
+                {"updates_count": None, "updates_status": "unknown"},
+            )
+
     def test_absent_power_and_services_are_safe_states(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

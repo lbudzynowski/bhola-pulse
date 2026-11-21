@@ -365,6 +365,10 @@ local function status_color(state)
         return colors.yellow
     elseif state == "error" then
         return colors.red
+    elseif state == "current" then
+        return colors.green
+    elseif state == "pending" then
+        return colors.yellow
     end
     return colors.gray
 end
@@ -378,6 +382,12 @@ local function status_label(state)
         return "ERROR"
     elseif state == "off" then
         return "OFF"
+    elseif state == "na" then
+        return "N/A"
+    elseif state == "current" then
+        return "CURRENT"
+    elseif state == "pending" then
+        return "PENDING"
     end
     return "UNKNOWN"
 end
@@ -404,8 +414,10 @@ local function draw_status_grid(cr, origin_y, metrics, alpha, animation_time)
     draw_status(cr, 196, origin_y + 116, "NTFY", metrics.service_ntfy, alpha, animation_time)
     draw_status(cr, 34, origin_y + 170, "LOCAL MONITORS", metrics.service_monitors, alpha, animation_time)
 
-    local update_state = metrics.updates_status == "ok" and "ok" or "unknown"
-    draw_status(cr, 196, origin_y + 170, "UPDATES", update_state, alpha, animation_time)
+    local update_state = metrics.updates_status or "unknown"
+    local count = metrics.updates_count
+    local label = type(count) == "number" and ("UPDATES (" .. tostring(math.floor(count)) .. ")") or "UPDATES"
+    draw_status(cr, 196, origin_y + 170, label, update_state, alpha, animation_time)
     local power_color = metrics.power_source == "unknown" and colors.gray or colors.amber
     draw_text(cr, 28, origin_y + 207, "POWER", 8, colors.muted, alpha, "left", true)
     draw_text(cr, 28, origin_y + 226, string.upper(metrics.power_source or "unknown"), 13, power_color, alpha, "left", true)

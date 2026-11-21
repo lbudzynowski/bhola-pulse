@@ -6,23 +6,75 @@ config_home=${XDG_CONFIG_HOME:-${HOME:?HOME is required}/.config}
 state_home=${XDG_STATE_HOME:-${HOME:?HOME is required}/.local/state}
 config_dir="$config_home/bhola-pulse"
 config_file="$config_dir/style"
+monitors_file="$config_dir/monitors"
 state_file=${BHOLA_STATE_FILE:-$state_home/bhola-pulse/dashboard.json}
 
 usage() {
     cat <<'EOF'
 Usage:
-  bhola-pulse [--check] [--style modern|nerd|cinematic]
+  bhola-pulse [--check] [--style modern|nerd|cinematic] [--monitor 1|--monitors 0,2|all]
+  bhola-pulse --list-monitors
   bhola-pulse config show
   bhola-pulse config set modern|nerd|cinematic
   bhola-pulse config reset
+  bhola-pulse config monitors show|set 0,2|reset
   bhola-pulse --version
 
-Precedence: --style, BHOLA_STYLE, saved user configuration, modern.
+Style precedence: --style, BHOLA_STYLE, saved style, modern.
+Monitor precedence: --monitor/--monitors, BHOLA_MONITORS, saved monitors, all.
 EOF
 }
 
 valid_style() {
     [[ $1 == modern || $1 == nerd || $1 == cinematic ]]
+}
+
+valid_monitor_selection() {
+    if [[ $1 == all ]]; then
+        return 0
+    fi
+    [[ $1 =~ ^[0-9]+(,[0-9]+)*$ ]] || return 1
+    local -a numbers
+    local -A seen=()
+    local value
+    IFS=',' read -r -a numbers <<< "$1"
+    for value in "${numbers[@]}"; do
+        if [[ -v seen[$value] ]]; then
+            return 1
+        fi
+        seen[$value]=1
+    done
+}
+
+save_monitors() {
+    local requested=$1 temporary_file
+    if ! valid_monitor_selection "$requested"; then
+        printf 'Invalid monitor selector %q; expected all or unique indices (e.g. 0,2).\n' "$requested" >&2
+        exit 2
+    fi
+    umask 077
+    mkdir -p -- "$config_dir"
+    temporary_file=$(mktemp "$config_dir/.monitors.XXXXXX")
+    trap 'rm -f -- "$temporary_file"' EXIT
+    printf '%s\n' "$requested" > "$temporary_file"
+    chmod 600 "$temporary_file"
+    mv -f -- "$temporary_file" "$monitors_file"
+    trap - EXIT
+    printf 'Saved Bhola Pulse monitors: %s\n' "$requested"
+}
+
+configured_monitors() {
+    local selector
+    if [[ ! -r $monitors_file ]]; then
+        printf 'all\n'
+        return
+    fi
+    IFS= read -r selector < "$monitors_file" || true
+    if ! valid_monitor_selection "$selector"; then
+        printf 'Invalid saved monitor selector in %s.\n' "$monitors_file" >&2
+        exit 2
+    fi
+    printf '%s\n' "$selector"
 }
 
 show_version() {
@@ -68,6 +120,31 @@ configured_style() {
 case ${1:-} in
     config)
         case ${2:-show} in
+            monitors)
+                case ${3:-show} in
+                    show)
+                        if (($# > 3)); then usage >&2; exit 2; fi
+                        if [[ -r $monitors_file ]]; then
+                            printf 'monitors=%s source=%s\n' "$(configured_monitors)" "$monitors_file"
+                        else
+                            printf 'monitors=all source=default\n'
+                        fi
+                        ;;
+                    set)
+                        if (($# != 4)); then usage >&2; exit 2; fi
+                        save_monitors "$4"
+                        ;;
+                    reset)
+                        if (($# != 3)); then usage >&2; exit 2; fi
+                        rm -f -- "$monitors_file"
+                        printf 'Bhola Pulse monitors reset to default: all\n'
+                        ;;
+                    *)
+                        usage >&2
+                        exit 2
+                        ;;
+                esac
+                ;;
             show)
                 if (($# > 2)); then
                     usage >&2
@@ -121,6 +198,10 @@ esac
 if [[ -z ${BHOLA_STYLE+x} && -r $config_file ]]; then
     export BHOLA_STYLE
     BHOLA_STYLE=$(configured_style)
+fi
+if [[ -z ${BHOLA_MONITORS+x} && -r $monitors_file ]]; then
+    export BHOLA_MONITORS
+    BHOLA_MONITORS=$(configured_monitors)
 fi
 export BHOLA_STATE_FILE="$state_file"
 

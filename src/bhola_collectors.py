@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+import os
 import subprocess
 import time
 
@@ -162,6 +163,7 @@ class SystemCollectors:
         self.etc_root = etc_root
         self.monotonic = monotonic
         self.wall_time = wall_time
+        self.command_runner = command_runner
         self._cpu_previous: CpuTimes | None = None
         self._disk_previous: tuple[DiskCounters, float] | None = None
         self._process_previous: tuple[dict[int, int], int] | None = None
@@ -293,7 +295,25 @@ class SystemCollectors:
         return self._services.collect(route.tunnel_present)
 
     def updates(self) -> dict[str, object]:
+        """Read the existing APT index; never update lists or install packages."""
+        unavailable = {"updates_count": None, "updates_status": "unknown"}
+        env = os.environ.copy()
+        env["LC_ALL"] = "C"
+        try:
+            result = self.command_runner(
+                ["apt", "list", "--upgradable"],
+                check=False, capture_output=True, text=True,
+                timeout=6.0, env=env,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return unavailable
+        if result.returncode != 0 or not isinstance(result.stdout, str):
+            return unavailable
+        lines = result.stdout.splitlines()
+        if not any(line.strip().startswith("Listing...") for line in lines):
+            return unavailable
+        count = sum(1 for line in lines if "[upgradable from:" in line)
         return {
-            "updates_count": None,
-            "updates_status": "unknown",
+            "updates_count": count,
+            "updates_status": "pending" if count else "current",
         }

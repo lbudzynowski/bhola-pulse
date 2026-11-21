@@ -6,6 +6,7 @@ import unittest
 from src.bhola_monitors import (
     discover_active_monitors,
     parse_active_monitors,
+    select_active_monitors,
     render_interval_for_count,
 )
 
@@ -48,6 +49,15 @@ class MonitorDiscoveryTests(unittest.TestCase):
         self.assertEqual(command, ["xrandr", "--listactivemonitors"])
         self.assertFalse(kwargs["check"])
         self.assertEqual(kwargs["timeout"], 2.0)
+
+    def test_explicit_monitor_selection_fails_closed(self) -> None:
+        self.assertEqual(select_active_monitors([0, 1, 2], "all"), [0, 1, 2])
+        self.assertEqual(select_active_monitors([0, 1, 2], "2"), [2])
+        self.assertEqual(select_active_monitors([0, 1, 2], "2,0"), [0, 2])
+        for invalid in ("", "3", "1,1", "-1", "0;echo", "1,", "all,1"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    select_active_monitors([0, 1, 2], invalid)
 
     def test_render_interval_scales_with_instance_count(self) -> None:
         self.assertEqual(render_interval_for_count(1), 0.15)

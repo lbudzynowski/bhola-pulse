@@ -5,12 +5,26 @@ project_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$project_root"
 
 check_only=false
+list_monitors=false
+monitor_selection=""
 style_options=()
 while (($# > 0)); do
     case $1 in
         --check)
             check_only=true
             shift
+            ;;
+        --list-monitors)
+            list_monitors=true
+            shift
+            ;;
+        --monitor|--monitors)
+            if (($# < 2)); then
+                printf 'Expected monitor index after %s (all, 1 or 0,2).\n' "$1" >&2
+                exit 2
+            fi
+            monitor_selection=$2
+            shift 2
             ;;
         --style)
             if (($# < 2)); then
@@ -21,11 +35,17 @@ while (($# > 0)); do
             shift 2
             ;;
         *)
-            printf 'Usage: %s [--check] [--style modern|nerd|cinematic]\n' "$0" >&2
+            printf 'Usage: %s [--check] [--style modern|nerd|cinematic] [--monitor 1|--monitors 0,2|all] [--list-monitors]\n' "$0" >&2
             exit 2
             ;;
     esac
 done
+
+if $list_monitors; then
+    printf 'Active XRandR monitor indices (number before each colon):\n'
+    xrandr --listactivemonitors
+    exit $?
+fi
 
 missing=()
 for command_name in conky python3; do
@@ -48,6 +68,12 @@ python3 -m src.bhola_provider --check
 python3 -m src.bhola_clickthrough --check
 python3 -m src.bhola_monitors --check
 printf 'Dashboard style: %s\n' "$dashboard_style"
+monitor_selection=${monitor_selection:-${BHOLA_MONITORS:-all}}
+if ! selected_monitors=$(python3 -m src.bhola_monitors --indices --select "$monitor_selection"); then
+    exit 2
+fi
+read -r -a monitor_indices <<< "$selected_monitors"
+printf 'Selected monitor indices: %s (selector: %s)\n' "$selected_monitors" "$monitor_selection"
 
 if $check_only; then
     printf 'Note: --check does not execute a Cairo draw frame; validate rendering with all --style options.\n'
@@ -100,7 +126,6 @@ if [[ ! -s $state_file ]]; then
     exit 1
 fi
 
-read -r -a monitor_indices <<<"$(python3 -m src.bhola_monitors --indices)"
 render_interval=$(python3 -m src.bhola_monitors --render-interval "${#monitor_indices[@]}")
 if [[ $dashboard_style == cinematic ]]; then
     render_interval=0.03
