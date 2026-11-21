@@ -1,6 +1,7 @@
 require "cairo"
 
 local data = require("conky.bhola_data")
+local surfaces = require("conky.bhola_surface")
 local style = os.getenv("BHOLA_STYLE") or "modern"
 local state_file = os.getenv("BHOLA_STATE_FILE") or "state/dashboard.json"
 local renderer_modules = {
@@ -13,6 +14,7 @@ end
 local render = require(renderer_modules[style])
 
 local frame = 0
+local surface_error_reported = false
 local update_interval = tonumber(os.getenv("BHOLA_UPDATE_INTERVAL")) or 0.15
 local default_scale = 1.25
 local scale = tonumber(os.getenv("BHOLA_SCALE")) or default_scale
@@ -28,7 +30,7 @@ local function configure_font_rendering(cr)
 end
 
 function conky_draw_bhola()
-    if conky_window == nil then
+    if conky_window == nil and type(conky_surface) ~= "function" then
         return
     end
 
@@ -36,13 +38,15 @@ function conky_draw_bhola()
     local metrics = data.read(state_file)
     render.update(metrics)
 
-    local surface = cairo_xlib_surface_create(
-        conky_window.display,
-        conky_window.drawable,
-        conky_window.visual,
-        conky_window.width,
-        conky_window.height
-    )
+    local surface, owned_surface, surface_error = surfaces.acquire(conky_window, conky_surface)
+    if surface == nil then
+        -- Missing Cairo extensions must not flood stderr at every frame.
+        if surface_error ~= nil and not surface_error_reported then
+            io.stderr:write("Bhola Pulse: " .. surface_error .. "\n")
+            surface_error_reported = true
+        end
+        return
+    end
     local cr = cairo_create(surface)
     cairo_scale(cr, scale, scale)
     configure_font_rendering(cr)
@@ -52,5 +56,7 @@ function conky_draw_bhola()
     render.draw_ticker(cr, metrics, 1, elapsed)
 
     cairo_destroy(cr)
-    cairo_surface_destroy(surface)
+    if owned_surface then
+        cairo_surface_destroy(surface)
+    end
 end

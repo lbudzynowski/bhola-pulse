@@ -50,6 +50,7 @@ python3 -m src.bhola_monitors --check
 printf 'Dashboard style: %s\n' "$dashboard_style"
 
 if $check_only; then
+    printf 'Note: --check does not execute a Cairo draw frame; validate rendering with both --style options.\n'
     exit 0
 fi
 
