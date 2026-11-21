@@ -8,6 +8,12 @@ Bhola Pulse is an animated system-telemetry dashboard for Ubuntu GNOME on
 Wayland/XWayland. It combines one long-lived, standard-library-only Python
 provider, one atomic JSON cache, and transparent Conky/Lua/Cairo renderers.
 
+**Current experimental version:** 0.1.6-1 (unmerged PR CI candidate, not yet in
+the public GitHub Release or PPA). For users evaluating the new renderer see
+the [Cinematic user guide](docs/CINEMATIC_USER_GUIDE.md) and the
+[Haiyan validation/acceptance report](docs/HAIYAN_VALIDATION_2026-11-21.md).
+Outstanding work is tracked in [GitHub Issues](https://github.com/lbudzynowski/bhola-pulse/issues).
+
 **Hardware scope:** This is **not an ASUS-only package**. Core Linux
 telemetry can run on other manufacturers' hardware, but some fixed status
 indicators detect optional local services. In the **0.1.6 test candidate**
@@ -39,8 +45,10 @@ never receives firewall capabilities.
 
 ## Dashboard
 
-Bhola Pulse renders the same four-section 760×570 dashboard on every monitor
-active at startup:
+Bhola Pulse renders a four-section dashboard: **760×570** in `modern`/`nerd`
+and **760×720** in `cinematic` (before scaling). The default is every active
+monitor; test candidates since 0.1.5 also allow selecting specific XRandR heads
+at startup:
 
 - **System Pulse** — CPU, RAM, load, uptime, temperatures, power, battery, and
   three large meters;
@@ -140,9 +148,11 @@ startup; after monitor hotplug restart the dashboard.
 
 ## Optional status meanings (0.1.5 and 0.1.6 test candidates)
 
-- An **undetected local** ASUS NumberPad, Fortinet, ntfy or local monitoring
-  integration is labeled `N/A`, not `ACTIVE`. This **does not** verify or
-  certify a remote service or prove that a VPN binary is absent.
+- An **undetected optional local** integration is labeled `N/A`, not
+  `ACTIVE`. In 0.1.6 the displayed services are SSH, the physical Num Lock
+  LED, ntfy, UFW and local monitoring, **not** the old ASUS touchpad helper
+  or FortiVPN tile. `N/A` does not verify remote services, and the Num Lock
+  field uses `UNKNOWN` (not N/A) if its LED is unreadable.
 - `UNKNOWN` remains when local service verification itself is unavailable.
 - A locally running Beszel agent is now recognized under `LOCAL MON`.
   The actual remote Beszel server or ntfy server on Coringa is **not**
@@ -187,12 +197,13 @@ is not yet part of the public release or published PPA. Read the
 **Testing cinematic on Haiyan?** Obtain only the CI-built candidate from the
 separate development PR; it is not yet in the latest release or apps PPA.
 The downloadable candidate artifact requires a successful CI run and SHA256
-verification. Upgrading an installed 0.1.3 package with
-`sudo apt install ./bhola-pulse_0.1.4-1_all.deb` retains config/state; uninstall
-first is unnecessary. Validate `bhola-pulse --style cinematic` in the actual
-graphical session. You can restore the known-good local 0.1.3-1 file with
-`sudo apt install --allow-downgrades ./bhola-pulse_0.1.3-1_all.deb` from its
-previous download directory.
+verification. Upgrading between **candidate versions** with
+`sudo apt install ./bhola-pulse_<candidate-version>_all.deb` retains
+config/state; uninstall first is unnecessary. For the known 0.1.6 candidate,
+follow the [verified CI-artifact procedure](docs/CINEMATIC_USER_GUIDE.md).
+Visually verify `bhola-pulse --style cinematic` on the intended monitor.
+Preserve a previous verified `.deb` for rollback using
+`sudo apt install --allow-downgrades ./<previous-version>.deb`.
 
 ```bash
 sha256sum --check SHA256SUMS
@@ -212,15 +223,16 @@ The package depends on:
 - `xrandr` from `x11-xserver-utils`;
 - the X11 client library used by the verified click-through helper.
 
-`ping` is recommended. Missing, stale, or invalid optional signals produce an
-honest `unknown` state instead of terminating the dashboard. On non-ASUS
-hardware, `NUMBERPAD UNKNOWN` is expected without the specific ASUS
-software; `UPDATES UNKNOWN` is currently unconditional because update
-collection is not implemented. `NTFY` only detects specific local
-processes/systemd units, not remote servers; `LOCAL MONITORS` refers to
-recognized monitoring tools, not physical screens. Details and the precise
-meaning of `UNKNOWN`, `OFF`, and `N/A` are documented in the
-[optional integration matrix](docs/hardware-and-optional-integrations.md).
+`ping` is recommended. Missing, stale, or invalid optional signals produce
+honest `UNKNOWN` or `N/A` states rather than terminating the dashboard.
+**Public 0.1.2** used an ASUS touchpad helper and always reported
+`UPDATES UNKNOWN`. **Test candidate 0.1.6** instead reports physical
+`NUM LOCK` from a Linux LED, `SSH` from recognized systemd units,
+`LOCAL MON` including Beszel and updates from the existing APT cache.
+`NTFY` still only checks local helpers and does **not** test Coringa.
+For exact semantics, see the
+[Cinematic guide](docs/CINEMATIC_USER_GUIDE.md) and
+[legacy integration matrix](docs/hardware-and-optional-integrations.md).
 
 **Important:** `bhola-pulse --check` does not exercise actual graphical
 Cairo rendering. After installation, visually verify `modern`, `nerd`, and (if available) `cinematic`
@@ -296,8 +308,10 @@ exist.
 The provider schedules fast metrics every second, disk activity every two
 seconds, temperatures and the top process every five seconds, power and local
 statuses every 12 seconds, and the optional update count no more than hourly.
-The current standard-library implementation reports the update count as
-`unknown` instead of spawning a package manager or refreshing package metadata.
+The public 0.1.2 implementation reports the update count as `unknown`.
+The 0.1.5/0.1.6 candidate runs a **bounded read-only** `apt list --upgradable`
+against the existing local package index once per hour, without refreshing
+the metadata or installing packages.
 
 With one monitor Conky renders every 0.15 seconds. Startup selection increases
 the interval to 0.25 seconds for two monitors and 0.35 seconds for three or more.
